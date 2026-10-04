@@ -121,10 +121,14 @@ const Projects = () => {
         throw new Error("Invalid data received");
       }
 
-      // Latest Google Sheet entry first
+      // ==========================================
+      // LATEST GOOGLE SHEET ENTRY FIRST
+      // ==========================================
+
       const latestFirst = [...data].reverse();
 
       setProjects(latestFirst);
+
     } catch (error) {
       console.error("Error loading projects:", error);
 
@@ -133,6 +137,7 @@ const Projects = () => {
       } else {
         setError("Unable to load projects.");
       }
+
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -193,16 +198,27 @@ const Projects = () => {
 
   const totalProjects = projects.length;
 
-  const inProgress = projects.filter(
-    (project) => project.Status === "In Progress"
-  ).length;
-
+  // Progress is 100% = Completed
   const completed = projects.filter(
-    (project) => project.Status === "Completed"
+    (project) => Number(project.Progress || 0) >= 100
   ).length;
 
+  // Progress below 100% = Active
+  const inProgress = projects.filter(
+    (project) => {
+      const progress = Number(project.Progress || 0);
+
+      return progress > 0 && progress < 100;
+    }
+  ).length;
+
+  // Progress 80% - 99% = Near Completion
   const nearCompletion = projects.filter(
-    (project) => project.Status === "Near Completion"
+    (project) => {
+      const progress = Number(project.Progress || 0);
+
+      return progress >= 80 && progress < 100;
+    }
   ).length;
 
   // ==========================================
@@ -212,6 +228,7 @@ const Projects = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[600px] bg-gray-50">
+
         <div className="text-center">
 
           <div className="relative flex items-center justify-center w-16 h-16 mx-auto mb-5">
@@ -235,6 +252,7 @@ const Projects = () => {
           </p>
 
         </div>
+
       </div>
     );
   }
@@ -416,7 +434,7 @@ const Projects = () => {
               </p>
 
               <p className="mt-1 text-xs text-gray-400">
-                Almost finished
+                80% or more
               </p>
 
             </div>
@@ -441,7 +459,7 @@ const Projects = () => {
               </p>
 
               <p className="mt-1 text-xs text-gray-400">
-                Successfully finished
+                100% completed
               </p>
 
             </div>
@@ -621,19 +639,18 @@ const Projects = () => {
 
               let statusClass = theme.badge;
 
-              if (project.Status === "Completed") {
+              if (progress === 100) {
                 statusClass =
                   "bg-green-100 text-green-700";
-              }
-
-              if (project.Status === "Near Completion") {
+              } else if (project.Status === "Near Completion") {
                 statusClass =
                   "bg-orange-100 text-orange-700";
-              }
-
-              if (project.Status === "In Progress") {
+              } else if (project.Status === "In Progress") {
                 statusClass =
                   "bg-blue-100 text-blue-700";
+              } else if (project.Status === "Completed") {
+                statusClass =
+                  "bg-green-100 text-green-700";
               }
 
 
@@ -671,7 +688,10 @@ const Projects = () => {
                       left-0
                       right-0
                       h-1
-                      ${theme.top}
+                      ${progress === 100
+                        ? "bg-green-500"
+                        : theme.top
+                      }
                     `}
                   ></div>
 
@@ -698,9 +718,7 @@ const Projects = () => {
 
                   <div className="relative z-10 p-5">
 
-                    {/* =================================
-                        LOGO + PROGRESS
-                    ================================= */}
+                    {/* LOGO + PROGRESS */}
 
                     <div className="flex items-center justify-between">
 
@@ -803,9 +821,7 @@ const Projects = () => {
                     </div>
 
 
-                    {/* =================================
-                        TITLE
-                    ================================= */}
+                    {/* TITLE */}
 
                     <div className="mt-5">
 
@@ -816,9 +832,7 @@ const Projects = () => {
                     </div>
 
 
-                    {/* =================================
-                        STATUS
-                    ================================= */}
+                    {/* STATUS */}
 
                     <div className="mt-3">
 
@@ -833,15 +847,15 @@ const Projects = () => {
                           ${statusClass}
                         `}
                       >
-                        {project.Status || "Unknown"}
+                        {progress === 100
+                          ? "Completed"
+                          : project.Status || "Unknown"}
                       </span>
 
                     </div>
 
 
-                    {/* =================================
-                        DESCRIPTION
-                    ================================= */}
+                    {/* DESCRIPTION */}
 
                     <p className="mt-4 text-sm leading-5 text-gray-500 line-clamp-3">
                       {project.Description ||
@@ -849,9 +863,7 @@ const Projects = () => {
                     </p>
 
 
-                    {/* =================================
-                        INFORMATION
-                    ================================= */}
+                    {/* INFORMATION */}
 
                     <div className="grid grid-cols-1 gap-3 mt-5">
 
@@ -906,9 +918,7 @@ const Projects = () => {
                     </div>
 
 
-                    {/* =================================
-                        PROGRESS BAR
-                    ================================= */}
+                    {/* PROGRESS BAR */}
 
                     <div className="mt-5">
 
@@ -919,7 +929,11 @@ const Projects = () => {
                         </span>
 
                         <span
-                          className={`text-xs font-bold ${theme.progress}`}
+                          className={`text-xs font-bold ${
+                            progress === 100
+                              ? "text-green-600"
+                              : theme.progress
+                          }`}
                         >
                           {progress}%
                         </span>
@@ -934,9 +948,10 @@ const Projects = () => {
                             rounded-full
                             transition-all
                             duration-700
-                            ${progress === 100
-                              ? "bg-green-500"
-                              : theme.progressBar
+                            ${
+                              progress === 100
+                                ? "bg-green-500"
+                                : theme.progressBar
                             }
                           `}
                           style={{
@@ -949,9 +964,7 @@ const Projects = () => {
                     </div>
 
 
-                    {/* =================================
-                        VIEW DETAILS
-                    ================================= */}
+                    {/* VIEW DETAILS */}
 
                     <div className="flex items-center justify-between pt-4 mt-5 border-t border-gray-200/60">
 
@@ -966,7 +979,11 @@ const Projects = () => {
                           transition-transform
                           duration-300
                           group-hover:translate-x-1
-                          ${theme.arrow}
+                          ${
+                            progress === 100
+                              ? "text-green-600"
+                              : theme.arrow
+                          }
                         `}
                       >
                         View →

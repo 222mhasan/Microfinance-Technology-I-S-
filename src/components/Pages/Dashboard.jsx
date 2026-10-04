@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -42,13 +41,13 @@ const Dashboard = () => {
       }
 
       // ==========================================
-      // LATEST SHEET ENTRY FIRST
+      // LATEST GOOGLE SHEET ENTRY FIRST
       // ==========================================
-      // Google Sheet data comes in top-to-bottom order.
-      // Reversing it makes the last row appear first.
+
       const latestFirst = [...data].reverse();
 
       setProjects(latestFirst);
+
     } catch (error) {
       console.error("Error loading dashboard:", error);
 
@@ -57,6 +56,7 @@ const Dashboard = () => {
       } else {
         setError("Unable to load dashboard data.");
       }
+
     } finally {
       setLoading(false);
     }
@@ -73,6 +73,7 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[500px] bg-gray-50">
+
         <div className="text-center">
 
           <div className="w-12 h-12 mx-auto mb-4 border-4 border-gray-200 rounded-full border-t-pink-600 animate-spin"></div>
@@ -86,6 +87,7 @@ const Dashboard = () => {
           </p>
 
         </div>
+
       </div>
     );
   }
@@ -131,17 +133,44 @@ const Dashboard = () => {
 
   const totalProjects = projects.length;
 
-  const inProgress = projects.filter(
-    (project) => project.Status === "In Progress"
-  ).length;
-
-  const nearCompletion = projects.filter(
-    (project) => project.Status === "Near Completion"
-  ).length;
+  // ==========================================
+  // COMPLETED
+  // Progress 100% = Completed
+  // ==========================================
 
   const completed = projects.filter(
-    (project) => project.Status === "Completed"
+    (project) => Number(project.Progress || 0) >= 100
   ).length;
+
+  // ==========================================
+  // IN PROGRESS
+  // Progress between 1% and 99%
+  // ==========================================
+
+  const inProgress = projects.filter(
+    (project) => {
+      const progress = Number(project.Progress || 0);
+
+      return progress > 0 && progress < 100;
+    }
+  ).length;
+
+  // ==========================================
+  // NEAR COMPLETION
+  // Progress 80% - 99%
+  // ==========================================
+
+  const nearCompletion = projects.filter(
+    (project) => {
+      const progress = Number(project.Progress || 0);
+
+      return progress >= 80 && progress < 100;
+    }
+  ).length;
+
+  // ==========================================
+  // AVERAGE PROGRESS
+  // ==========================================
 
   const averageProgress =
     totalProjects > 0
@@ -171,14 +200,14 @@ const Dashboard = () => {
       title: "In Progress",
       value: inProgress,
       description: "Currently active",
-      valueClass: "text-pink-600",
-      iconBg: "bg-pink-100",
-      iconColor: "text-pink-600",
+      valueClass: "text-blue-600",
+      iconBg: "bg-blue-100",
+      iconColor: "text-blue-600",
     },
     {
       title: "Near Completion",
       value: nearCompletion,
-      description: "Almost completed",
+      description: "80% or more",
       valueClass: "text-orange-500",
       iconBg: "bg-orange-100",
       iconColor: "text-orange-500",
@@ -186,7 +215,7 @@ const Dashboard = () => {
     {
       title: "Completed",
       value: completed,
-      description: "Successfully completed",
+      description: "Progress at 100%",
       valueClass: "text-green-600",
       iconBg: "bg-green-100",
       iconColor: "text-green-600",
@@ -195,9 +224,9 @@ const Dashboard = () => {
       title: "Average Progress",
       value: `${averageProgress}%`,
       description: "Overall project progress",
-      valueClass: "text-blue-600",
-      iconBg: "bg-blue-100",
-      iconColor: "text-blue-600",
+      valueClass: "text-pink-600",
+      iconBg: "bg-pink-100",
+      iconColor: "text-pink-600",
     },
   ];
 
@@ -271,7 +300,7 @@ const Dashboard = () => {
     <div className="relative min-h-screen p-6 overflow-hidden bg-gray-50 dashboard-fade">
 
       {/* ======================================
-          BACKGROUND DECORATION
+          BACKGROUND
       ====================================== */}
 
       <div className="absolute top-0 right-0 w-72 h-72 bg-pink-100 rounded-full opacity-30 blur-3xl"></div>
@@ -343,8 +372,6 @@ const Dashboard = () => {
               }}
             >
 
-              {/* Decorative Circle */}
-
               <div
                 className={`absolute w-20 h-20 rounded-full -right-6 -top-6 ${card.iconBg} opacity-60`}
               ></div>
@@ -408,7 +435,7 @@ const Dashboard = () => {
               </h2>
 
               <p className="mt-1 text-xs text-gray-500">
-                Latest projects appear first
+                Current status and progress of technology projects
               </p>
 
             </div>
@@ -467,8 +494,7 @@ const Dashboard = () => {
 
                 const progressOffset =
                   circumference -
-                  (progress / 100) *
-                    circumference;
+                  (progress / 100) * circumference;
 
 
                 // =================================
@@ -487,20 +513,17 @@ const Dashboard = () => {
 
                 let statusClass = theme.badge;
 
-                if (project.Status === "Completed") {
+                if (progress === 100) {
                   statusClass =
                     "bg-green-100 text-green-700";
-                }
-
-                if (project.Status === "Near Completion") {
+                } else if (progress >= 80) {
                   statusClass =
                     "bg-orange-100 text-orange-700";
+                } else if (project.Status === "In Progress") {
+                  statusClass =
+                    "bg-blue-100 text-blue-700";
                 }
 
-
-                // =================================
-                // CARD
-                // =================================
 
                 return (
 
@@ -517,7 +540,11 @@ const Dashboard = () => {
                       bg-gradient-to-br
                       ${theme.card}
                       border
-                      ${theme.border}
+                      ${
+                        progress === 100
+                          ? "border-green-200"
+                          : theme.border
+                      }
                       shadow-sm
                       rounded-2xl
                       dashboard-card
@@ -528,7 +555,18 @@ const Dashboard = () => {
                     {/* TOP COLOR BAR */}
 
                     <div
-                      className={`absolute top-0 left-0 right-0 h-1 ${theme.top}`}
+                      className={`
+                        absolute
+                        top-0
+                        left-0
+                        right-0
+                        h-1
+                        ${
+                          progress === 100
+                            ? "bg-green-500"
+                            : theme.top
+                        }
+                      `}
                     ></div>
 
 
@@ -542,7 +580,11 @@ const Dashboard = () => {
                         rounded-full
                         -right-8
                         -top-8
-                        ${theme.glow}
+                        ${
+                          progress === 100
+                            ? "bg-green-200"
+                            : theme.glow
+                        }
                         opacity-20
                         blur-2xl
                       `}
@@ -551,13 +593,11 @@ const Dashboard = () => {
 
                     <div className="relative z-10 p-5">
 
-                      {/* =================================
-                          LOGO + PROGRESS
-                      ================================= */}
+                      {/* LOGO + PROGRESS */}
 
                       <div className="flex items-center justify-between">
 
-                        {/* PNG LOGO */}
+                        {/* LOGO */}
 
                         <div
                           className={`
@@ -570,7 +610,11 @@ const Dashboard = () => {
                             border
                             rounded-2xl
                             project-logo
-                            ${theme.logo}
+                            ${
+                              progress === 100
+                                ? "bg-green-100 border-green-200"
+                                : theme.logo
+                            }
                           `}
                         >
 
@@ -586,7 +630,15 @@ const Dashboard = () => {
                           ) : (
 
                             <span
-                              className={`text-xl font-bold ${theme.logoText}`}
+                              className={`
+                                text-xl
+                                font-bold
+                                ${
+                                  progress === 100
+                                    ? "text-green-600"
+                                    : theme.logoText
+                                }
+                              `}
                             >
                               MF
                             </span>
@@ -654,9 +706,7 @@ const Dashboard = () => {
                       </div>
 
 
-                      {/* =================================
-                          TITLE
-                      ================================= */}
+                      {/* TITLE */}
 
                       <div className="mt-5">
 
@@ -667,9 +717,7 @@ const Dashboard = () => {
                       </div>
 
 
-                      {/* =================================
-                          STATUS
-                      ================================= */}
+                      {/* STATUS */}
 
                       <div className="mt-3">
 
@@ -684,15 +732,15 @@ const Dashboard = () => {
                             ${statusClass}
                           `}
                         >
-                          {project.Status}
+                          {progress === 100
+                            ? "Completed"
+                            : project.Status}
                         </span>
 
                       </div>
 
 
-                      {/* =================================
-                          DESCRIPTION
-                      ================================= */}
+                      {/* DESCRIPTION */}
 
                       <p className="mt-4 text-sm leading-5 text-gray-500 line-clamp-3">
 
@@ -702,9 +750,7 @@ const Dashboard = () => {
                       </p>
 
 
-                      {/* =================================
-                          TIMELINE
-                      ================================= */}
+                      {/* TIMELINE */}
 
                       <div className="mt-5">
 
@@ -719,9 +765,7 @@ const Dashboard = () => {
                       </div>
 
 
-                      {/* =================================
-                          MANAGER
-                      ================================= */}
+                      {/* MANAGER */}
 
                       <div className="mt-4">
 
@@ -736,9 +780,7 @@ const Dashboard = () => {
                       </div>
 
 
-                      {/* =================================
-                          VIEW
-                      ================================= */}
+                      {/* VIEW */}
 
                       <div className="flex items-center justify-between pt-4 mt-5 border-t border-gray-200/70">
 
@@ -751,7 +793,11 @@ const Dashboard = () => {
                             text-sm
                             font-semibold
                             view-arrow
-                            ${theme.arrow}
+                            ${
+                              progress === 100
+                                ? "text-green-600"
+                                : theme.arrow
+                            }
                           `}
                         >
                           View →
