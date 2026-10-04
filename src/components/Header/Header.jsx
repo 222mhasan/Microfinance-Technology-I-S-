@@ -86,7 +86,7 @@ const Header = ({ sidebarOpen, onMenuClick }) => {
 
           {/* User */}
           <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-pink-700 bg-pink-100 rounded-full">
-            MH
+            I&S
           </div>
 
         </div>
