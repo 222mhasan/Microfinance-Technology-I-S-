@@ -1,816 +1,1134 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 
-const Dashboard = () => {
-  const API_URL =
-    "https://script.google.com/macros/s/AKfycbw9ARpnkUgzbxOpxtJVglZvV6dWfN6eqQJ3L-1fTYxJWhYrmNjwuaQqC0Wkxquyq2o/exec";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  DollarSign,
+  FolderKanban,
+  RefreshCw,
+  TrendingUp,
+} from "lucide-react";
+
+import { fetchProjects } from "../../services/api";
+
+
+// ============================================================
+// PROJECT THEMES
+// ============================================================
+
+const projectThemes = [
+  {
+    bg: "from-pink-500 to-rose-500",
+    light: "bg-pink-50",
+    text: "text-pink-600",
+  },
+  {
+    bg: "from-blue-500 to-indigo-500",
+    light: "bg-blue-50",
+    text: "text-blue-600",
+  },
+  {
+    bg: "from-emerald-500 to-green-500",
+    light: "bg-emerald-50",
+    text: "text-emerald-600",
+  },
+  {
+    bg: "from-purple-500 to-violet-500",
+    light: "bg-purple-50",
+    text: "text-purple-600",
+  },
+  {
+    bg: "from-orange-500 to-amber-500",
+    light: "bg-orange-50",
+    text: "text-orange-600",
+  },
+];
+
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+
+export default function Dashboard() {
 
   const [projects, setProjects] = useState([]);
+
   const [loading, setLoading] = useState(true);
+
+  const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
 
-  // ==========================================
-  // FETCH PROJECTS
-  // ==========================================
 
-  const fetchProjects = async () => {
+  // ==========================================================
+  // LOAD PROJECTS
+  // ==========================================================
+
+  const loadProjects = async (
+    forceRefresh = false
+  ) => {
+
+    setError("");
+
     try {
-      setLoading(true);
-      setError("");
 
-      const controller = new AbortController();
+      if (forceRefresh) {
 
-      const timeout = setTimeout(() => {
-        controller.abort();
-      }, 10000);
+        setRefreshing(true);
 
-      const response = await fetch(API_URL, {
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        throw new Error("Failed to load projects");
-      }
-
-      const data = await response.json();
-
-      if (!Array.isArray(data)) {
-        throw new Error("Invalid data received");
-      }
-
-      // ==========================================
-      // LATEST GOOGLE SHEET ENTRY FIRST
-      // ==========================================
-
-      const latestFirst = [...data].reverse();
-
-      setProjects(latestFirst);
-
-    } catch (error) {
-      console.error("Error loading dashboard:", error);
-
-      if (error.name === "AbortError") {
-        setError("The server is taking too long to respond.");
       } else {
-        setError("Unable to load dashboard data.");
+
+        setLoading(true);
+
       }
+
+
+      const data =
+        await fetchProjects(
+          forceRefresh
+        );
+
+
+      setProjects(data);
+
+    } catch (err) {
+
+      console.error(
+        "Dashboard Error:",
+        err
+      );
+
+
+      setError(
+        err.message ||
+        "Unable to load projects."
+      );
 
     } finally {
+
       setLoading(false);
+
+      setRefreshing(false);
+
     }
+
   };
 
+
+  // ==========================================================
+  // INITIAL LOAD
+  // ==========================================================
+
   useEffect(() => {
-    fetchProjects();
+
+    loadProjects();
+
   }, []);
 
-  // ==========================================
-  // LOADING
-  // ==========================================
 
-  if (loading) {
+  // ==========================================================
+  // PROJECT STATISTICS
+  // ==========================================================
+
+  const statistics = useMemo(() => {
+
+    const total =
+      projects.length;
+
+
+    // --------------------------------------------------------
+    // COMPLETED PROJECTS
+    // --------------------------------------------------------
+
+    const completed =
+      projects.filter(
+        (project) =>
+          Number(
+            project.Progress
+          ) >= 100 ||
+
+          String(
+            project.Status || ""
+          )
+            .toLowerCase()
+            .trim() === "completed"
+      ).length;
+
+
+    // --------------------------------------------------------
+    // ONGOING PROJECTS
+    // --------------------------------------------------------
+
+    const ongoing =
+      projects.filter(
+        (project) => {
+
+          const status =
+            String(
+              project.Status || ""
+            )
+              .toLowerCase()
+              .trim();
+
+          return (
+            status === "in progress" ||
+            status === "ongoing"
+          );
+
+        }
+      ).length;
+
+
+    // --------------------------------------------------------
+    // ON HOLD PROJECTS
+    // --------------------------------------------------------
+
+    const onHold =
+      projects.filter(
+        (project) =>
+          String(
+            project.Status || ""
+          )
+            .toLowerCase()
+            .trim() === "on hold"
+      ).length;
+
+
+    // ========================================================
+    // TOTAL BUDGET EXPENDITURE
+    // ========================================================
+
+    const totalBudget =
+      projects.reduce(
+        (
+          total,
+          project
+        ) => {
+
+          // Get Budget value from Google Sheet
+          let budget =
+            project.Budget;
+
+
+          // Ignore empty values
+          if (
+            budget === null ||
+            budget === undefined ||
+            budget === ""
+          ) {
+
+            return total;
+
+          }
+
+
+          // Convert to string
+          budget =
+            String(
+              budget
+            ).trim();
+
+
+          // --------------------------------------------------
+          // Remove currency/text formatting
+          // --------------------------------------------------
+
+          budget =
+            budget
+              .replace(
+                /BDT/gi,
+                ""
+              )
+              .replace(
+                /Taka/gi,
+                ""
+              )
+              .replace(
+                /Tk/gi,
+                ""
+              )
+              .replace(
+                /৳/g,
+                ""
+              )
+              .replace(
+                /,/g,
+                ""
+              )
+              .replace(
+                /\s/g,
+                ""
+              );
+
+
+          // --------------------------------------------------
+          // Convert Bangla numbers to English numbers
+          // --------------------------------------------------
+
+          const banglaDigits = {
+            "০": "0",
+            "১": "1",
+            "২": "2",
+            "৩": "3",
+            "৪": "4",
+            "৫": "5",
+            "৬": "6",
+            "৭": "7",
+            "৮": "8",
+            "৯": "9",
+          };
+
+
+          budget =
+            budget.replace(
+              /[০-৯]/g,
+              (digit) =>
+                banglaDigits[digit]
+            );
+
+
+          // --------------------------------------------------
+          // Remove anything except numbers,
+          // decimal point and minus sign
+          // --------------------------------------------------
+
+          budget =
+            budget.replace(
+              /[^0-9.-]/g,
+              ""
+            );
+
+
+          // --------------------------------------------------
+          // Convert to number
+          // --------------------------------------------------
+
+          const numericBudget =
+            parseFloat(
+              budget
+            );
+
+
+          // --------------------------------------------------
+          // Add valid budget
+          // --------------------------------------------------
+
+          if (
+            Number.isFinite(
+              numericBudget
+            )
+          ) {
+
+            return (
+              total +
+              numericBudget
+            );
+
+          }
+
+
+          return total;
+
+        },
+        0
+      );
+
+
+    // ========================================================
+    // RETURN STATISTICS
+    // ========================================================
+
+    return {
+      total,
+      completed,
+      ongoing,
+      onHold,
+      totalBudget,
+    };
+
+  }, [projects]);
+
+
+  // ==========================================================
+  // FORMAT TOTAL BUDGET
+  // ==========================================================
+
+  const formattedBudget =
+    new Intl.NumberFormat(
+      "en-BD",
+      {
+        maximumFractionDigits: 0,
+      }
+    ).format(
+      statistics.totalBudget
+    );
+
+
+  // ==========================================================
+  // PROJECTS TO DISPLAY
+  // ==========================================================
+
+  const displayedProjects =
+    projects.slice(
+      0,
+      8
+    );
+
+
+  // ==========================================================
+  // OVERVIEW CARDS
+  // ==========================================================
+
+  const overviewCards = [
+
+    {
+      title:
+        "Total Projects",
+
+      value:
+        statistics.total,
+
+      icon:
+        FolderKanban,
+
+      iconStyle:
+        "bg-pink-100 text-pink-600",
+    },
+
+
+    {
+      title:
+        "Ongoing",
+
+      value:
+        statistics.ongoing,
+
+      icon:
+        Clock3,
+
+      iconStyle:
+        "bg-blue-100 text-blue-600",
+    },
+
+
+    {
+      title:
+        "Completed",
+
+      value:
+        statistics.completed,
+
+      icon:
+        CheckCircle2,
+
+      iconStyle:
+        "bg-green-100 text-green-600",
+    },
+
+
+    {
+      title:
+        "On Hold",
+
+      value:
+        statistics.onHold,
+
+      icon:
+        TrendingUp,
+
+      iconStyle:
+        "bg-amber-100 text-amber-600",
+    },
+
+
+    {
+      title:
+        "Total Budget Expenditure",
+
+      value:
+        `৳${formattedBudget}`,
+
+      icon:
+        DollarSign,
+
+      iconStyle:
+        "bg-purple-100 text-purple-600",
+    },
+
+  ];
+
+
+  // ==========================================================
+  // INITIAL LOADING STATE
+  // ==========================================================
+
+  if (
+    loading &&
+    projects.length === 0
+  ) {
+
     return (
-      <div className="flex items-center justify-center min-h-[500px] bg-gray-50">
 
-        <div className="text-center">
+      <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
 
-          <div className="w-12 h-12 mx-auto mb-4 border-4 border-gray-200 rounded-full border-t-pink-600 animate-spin"></div>
+        <div className="mx-auto max-w-7xl">
 
-          <p className="text-sm font-medium text-gray-500">
-            Loading dashboard...
-          </p>
 
-          <p className="mt-1 text-xs text-gray-400">
-            Please wait
-          </p>
+          {/* ==================================================
+              PAGE HEADER SKELETON
+          ================================================== */}
+
+          <div className="mb-6 flex items-center justify-between">
+
+            <div>
+
+              <div className="h-8 w-72 animate-pulse rounded-lg bg-slate-200" />
+
+              <div className="mt-2 h-4 w-80 animate-pulse rounded bg-slate-200" />
+
+            </div>
+
+
+            <div className="h-11 w-28 animate-pulse rounded-xl bg-slate-200" />
+
+          </div>
+
+
+          {/* ==================================================
+              OVERVIEW SKELETON
+          ================================================== */}
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+
+            {[
+              1,
+              2,
+              3,
+              4,
+              5,
+            ].map(
+              (item) => (
+
+                <div
+                  key={item}
+                  className="h-28 animate-pulse rounded-2xl bg-white shadow-sm"
+                />
+
+              )
+            )}
+
+          </div>
+
+
+          {/* ==================================================
+              PROJECT SKELETON
+          ================================================== */}
+
+          <div className="mt-7">
+
+            <div className="mb-4">
+
+              <div className="h-6 w-28 animate-pulse rounded bg-slate-200" />
+
+              <div className="mt-2 h-4 w-52 animate-pulse rounded bg-slate-200" />
+
+            </div>
+
+
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+
+              {[
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+              ].map(
+                (item) => (
+
+                  <div
+                    key={item}
+                    className="h-72 animate-pulse rounded-2xl bg-white shadow-sm"
+                  />
+
+                )
+              )}
+
+            </div>
+
+          </div>
 
         </div>
 
       </div>
+
     );
+
   }
 
-  // ==========================================
-  // ERROR
-  // ==========================================
 
-  if (error) {
-    return (
-      <div className="p-6 bg-gray-50 min-h-[500px]">
+  // ==========================================================
+  // MAIN UI
+  // ==========================================================
 
-        <div className="max-w-xl p-6 mx-auto mt-10 text-center bg-white border border-red-200 shadow-sm rounded-2xl">
+  return (
 
-          <div className="flex items-center justify-center w-14 h-14 mx-auto mb-4 text-xl font-bold text-red-600 bg-red-100 rounded-full">
-            !
+    <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
+
+      <div className="mx-auto max-w-7xl">
+
+
+        {/* ====================================================
+            PAGE HEADER
+        ==================================================== */}
+
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+          <div>
+
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+
+              Microfinance Technology
+
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-500">
+
+              Technology projects and implementation overview
+
+            </p>
+
           </div>
 
-          <h2 className="text-lg font-bold text-gray-800">
-            Unable to load dashboard
-          </h2>
 
-          <p className="mt-2 text-sm text-gray-500">
-            {error}
-          </p>
+          {/* ==================================================
+              REFRESH BUTTON
+          ================================================== */}
 
           <button
-            onClick={fetchProjects}
-            className="px-5 py-2.5 mt-5 text-sm font-medium text-white transition bg-pink-600 rounded-lg hover:bg-pink-700 active:scale-95"
+            onClick={() =>
+              loadProjects(true)
+            }
+            disabled={refreshing}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-pink-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-80"
           >
-            Try Again
+
+            <RefreshCw
+              size={16}
+              className={
+                refreshing
+                  ? "animate-spin"
+                  : ""
+              }
+            />
+
+            {refreshing
+              ? "Refreshing..."
+              : "Refresh"}
+
           </button>
 
         </div>
 
-      </div>
-    );
-  }
 
-  // ==========================================
-  // DASHBOARD CALCULATIONS
-  // ==========================================
+        {/* ====================================================
+            REFRESH STATUS
+        ==================================================== */}
 
-  const totalProjects = projects.length;
+        {refreshing && (
 
-  // ==========================================
-  // COMPLETED
-  // Progress 100% = Completed
-  // ==========================================
+          <div className="mb-5 flex items-center gap-3 rounded-xl border border-pink-100 bg-pink-50 px-4 py-3">
 
-  const completed = projects.filter(
-    (project) => Number(project.Progress || 0) >= 100
-  ).length;
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm">
 
-  // ==========================================
-  // IN PROGRESS
-  // Progress between 1% and 99%
-  // ==========================================
-
-  const inProgress = projects.filter(
-    (project) => {
-      const progress = Number(project.Progress || 0);
-
-      return progress > 0 && progress < 100;
-    }
-  ).length;
-
-  // ==========================================
-  // NEAR COMPLETION
-  // Progress 80% - 99%
-  // ==========================================
-
-  const nearCompletion = projects.filter(
-    (project) => {
-      const progress = Number(project.Progress || 0);
-
-      return progress >= 80 && progress < 100;
-    }
-  ).length;
-
-  // ==========================================
-  // AVERAGE PROGRESS
-  // ==========================================
-
-  const averageProgress =
-    totalProjects > 0
-      ? Math.round(
-          projects.reduce(
-            (total, project) =>
-              total + Number(project.Progress || 0),
-            0
-          ) / totalProjects
-        )
-      : 0;
-
-  // ==========================================
-  // SUMMARY CARDS
-  // ==========================================
-
-  const summaryCards = [
-    {
-      title: "Total Projects",
-      value: totalProjects,
-      description: "All technology projects",
-      valueClass: "text-gray-800",
-      iconBg: "bg-gray-100",
-      iconColor: "text-gray-600",
-    },
-    {
-      title: "In Progress",
-      value: inProgress,
-      description: "Currently active",
-      valueClass: "text-blue-600",
-      iconBg: "bg-blue-100",
-      iconColor: "text-blue-600",
-    },
-    {
-      title: "Near Completion",
-      value: nearCompletion,
-      description: "80% or more",
-      valueClass: "text-orange-500",
-      iconBg: "bg-orange-100",
-      iconColor: "text-orange-500",
-    },
-    {
-      title: "Completed",
-      value: completed,
-      description: "Progress at 100%",
-      valueClass: "text-green-600",
-      iconBg: "bg-green-100",
-      iconColor: "text-green-600",
-    },
-    {
-      title: "Average Progress",
-      value: `${averageProgress}%`,
-      description: "Overall project progress",
-      valueClass: "text-pink-600",
-      iconBg: "bg-pink-100",
-      iconColor: "text-pink-600",
-    },
-  ];
-
-  // ==========================================
-  // PROJECT COLOR THEMES
-  // ==========================================
-
-  const projectThemes = [
-    {
-      card: "from-pink-50 via-white to-rose-50",
-      border: "border-pink-200",
-      top: "bg-pink-500",
-      logo: "bg-pink-100 border-pink-200",
-      logoText: "text-pink-600",
-      progress: "text-pink-600",
-      badge: "bg-pink-100 text-pink-700",
-      arrow: "text-pink-600",
-      glow: "bg-pink-200",
-    },
-    {
-      card: "from-blue-50 via-white to-cyan-50",
-      border: "border-blue-200",
-      top: "bg-blue-500",
-      logo: "bg-blue-100 border-blue-200",
-      logoText: "text-blue-600",
-      progress: "text-blue-600",
-      badge: "bg-blue-100 text-blue-700",
-      arrow: "text-blue-600",
-      glow: "bg-blue-200",
-    },
-    {
-      card: "from-purple-50 via-white to-violet-50",
-      border: "border-purple-200",
-      top: "bg-purple-500",
-      logo: "bg-purple-100 border-purple-200",
-      logoText: "text-purple-600",
-      progress: "text-purple-600",
-      badge: "bg-purple-100 text-purple-700",
-      arrow: "text-purple-600",
-      glow: "bg-purple-200",
-    },
-    {
-      card: "from-emerald-50 via-white to-green-50",
-      border: "border-emerald-200",
-      top: "bg-emerald-500",
-      logo: "bg-emerald-100 border-emerald-200",
-      logoText: "text-emerald-600",
-      progress: "text-emerald-600",
-      badge: "bg-emerald-100 text-emerald-700",
-      arrow: "text-emerald-600",
-      glow: "bg-emerald-200",
-    },
-    {
-      card: "from-orange-50 via-white to-amber-50",
-      border: "border-orange-200",
-      top: "bg-orange-500",
-      logo: "bg-orange-100 border-orange-200",
-      logoText: "text-orange-600",
-      progress: "text-orange-600",
-      badge: "bg-orange-100 text-orange-700",
-      arrow: "text-orange-600",
-      glow: "bg-orange-200",
-    },
-  ];
-
-  // ==========================================
-  // RETURN
-  // ==========================================
-
-  return (
-    <div className="relative min-h-screen p-6 overflow-hidden bg-gray-50 dashboard-fade">
-
-      {/* ======================================
-          BACKGROUND
-      ====================================== */}
-
-      <div className="absolute top-0 right-0 w-72 h-72 bg-pink-100 rounded-full opacity-30 blur-3xl"></div>
-
-      <div className="absolute bottom-0 left-0 w-72 h-72 bg-purple-100 rounded-full opacity-20 blur-3xl"></div>
-
-      <div className="relative z-10">
-
-        {/* ======================================
-            PAGE HEADER
-        ====================================== */}
-
-        <div className="mb-7 dashboard-card">
-
-          <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-
-            <div>
-
-              <p className="mb-1 text-xs font-semibold tracking-widest text-pink-600 uppercase">
-                Microfinance Technology
-              </p>
-
-              <h1 className="text-2xl font-bold text-gray-800 md:text-3xl">
-                Technology Dashboard
-              </h1>
-
-              <p className="mt-1 text-sm text-gray-500">
-                Microfinance Technology Project Overview
-              </p>
+              <RefreshCw
+                size={15}
+                className="animate-spin text-pink-600"
+              />
 
             </div>
 
-            {/* SYSTEM STATUS */}
 
-            <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 shadow-sm rounded-xl">
+            <div>
 
-              <span className="relative flex w-2.5 h-2.5">
+              <p className="text-sm font-semibold text-pink-700">
 
-                <span className="absolute inline-flex w-full h-full bg-green-400 rounded-full opacity-75 animate-ping"></span>
+                Updating project data
 
-                <span className="relative inline-flex w-2.5 h-2.5 bg-green-500 rounded-full"></span>
+              </p>
 
-              </span>
 
-              <span className="text-xs font-medium text-gray-600">
-                System Active
-              </span>
+              <p className="text-xs text-pink-500">
+
+                Fetching the latest information from Google Sheets...
+
+              </p>
 
             </div>
 
           </div>
 
-        </div>
+        )}
 
 
-        {/* ======================================
-            SUMMARY CARDS
-        ====================================== */}
+        {/* ====================================================
+            ERROR MESSAGE
+        ==================================================== */}
 
-        <div className="grid grid-cols-1 gap-5 mb-7 sm:grid-cols-2 lg:grid-cols-5">
+        {error && (
 
-          {summaryCards.map((card, index) => (
+          <div className="mb-5 flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
 
-            <div
-              key={card.title}
-              className="relative p-5 overflow-hidden bg-white border border-gray-200 shadow-sm rounded-2xl dashboard-card summary-card"
-              style={{
-                animationDelay: `${0.1 + index * 0.1}s`,
-              }}
+            <span>
+              {error}
+            </span>
+
+
+            <button
+              onClick={() =>
+                loadProjects(true)
+              }
+              disabled={refreshing}
+              className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-red-600 shadow-sm transition hover:bg-red-100 disabled:opacity-60"
             >
 
-              <div
-                className={`absolute w-20 h-20 rounded-full -right-6 -top-6 ${card.iconBg} opacity-60`}
-              ></div>
+              Retry
 
-              <div className="relative z-10">
+            </button>
 
-                <div className="flex items-center justify-between">
+          </div>
 
-                  <p className="text-sm font-medium text-gray-500">
-                    {card.title}
-                  </p>
+        )}
 
-                  <div
-                    className={`flex items-center justify-center w-9 h-9 rounded-xl ${card.iconBg}`}
-                  >
+
+        {/* ====================================================
+            OVERVIEW CARDS
+        ==================================================== */}
+
+        <div
+          className={`mb-7 grid grid-cols-1 gap-4 transition-opacity duration-300 sm:grid-cols-2 lg:grid-cols-5 ${
+            refreshing
+              ? "opacity-70"
+              : "opacity-100"
+          }`}
+        >
+
+          {overviewCards.map(
+            (card) => {
+
+              const Icon =
+                card.icon;
+
+
+              return (
+
+                <div
+                  key={card.title}
+                  className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-md"
+                >
+
+                  <div className="flex items-center justify-between gap-3">
+
+                    <div className="min-w-0">
+
+                      <p className="text-sm font-medium text-slate-500">
+
+                        {card.title}
+
+                      </p>
+
+
+                      <p className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
+
+                        {card.value}
+
+                      </p>
+
+                    </div>
+
+
                     <div
-                      className={`w-2.5 h-2.5 rounded-full ${card.iconColor} bg-current`}
-                    ></div>
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${card.iconStyle}`}
+                    >
+
+                      <Icon
+                        size={21}
+                      />
+
+                    </div>
+
                   </div>
 
                 </div>
 
-                <h2
-                  className={`mt-3 text-3xl font-bold ${card.valueClass}`}
-                >
-                  {card.value}
-                </h2>
+              );
 
-                <p className="mt-1 text-xs text-gray-400">
-                  {card.description}
-                </p>
-
-              </div>
-
-            </div>
-
-          ))}
+            }
+          )}
 
         </div>
 
 
-        {/* ======================================
-            PROJECT OVERVIEW
-        ====================================== */}
+        {/* ====================================================
+            PROJECT SECTION HEADER
+        ==================================================== */}
 
-        <div
-          className="p-6 bg-white border border-gray-200 shadow-sm rounded-2xl dashboard-card"
-          style={{
-            animationDelay: "0.6s",
-          }}
-        >
+        <div className="mb-4 flex items-center justify-between">
 
-          {/* SECTION HEADER */}
+          <div>
 
-          <div className="flex flex-col justify-between gap-3 mb-7 sm:flex-row sm:items-center">
+            <h2 className="text-xl font-bold text-slate-900">
 
-            <div>
+              Projects
 
-              <h2 className="text-lg font-semibold text-gray-800">
-                Project Overview
-              </h2>
+            </h2>
 
-              <p className="mt-1 text-xs text-gray-500">
-                Current status and progress of technology projects
-              </p>
 
-            </div>
+            <p className="mt-1 text-sm text-slate-500">
 
-            <div className="flex items-center self-start gap-2 px-3 py-1.5 text-xs font-medium text-pink-700 bg-pink-50 rounded-full">
+              Latest technology initiatives
 
-              <span className="w-2 h-2 bg-pink-500 rounded-full animate-pulse"></span>
-
-              {totalProjects} Projects
-
-            </div>
+            </p>
 
           </div>
 
 
-          {/* ======================================
-              PROJECT GRID
-          ====================================== */}
+          {/* ==================================================
+              SHOW ALL
+          ================================================== */}
 
-          {projects.length === 0 ? (
+          <Link
+            to="/projects"
+            className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-pink-600 transition hover:bg-pink-50 hover:text-pink-700"
+          >
 
-            <div className="py-16 text-center">
+            Show All
 
-              <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 text-xl font-bold text-pink-600 bg-pink-50 rounded-2xl">
-                MF
+            <ArrowRight
+              size={16}
+            />
+
+          </Link>
+
+        </div>
+
+
+        {/* ====================================================
+            PROJECT GRID
+        ==================================================== */}
+
+        <div
+          className={`relative transition-opacity duration-300 ${
+            refreshing
+              ? "pointer-events-none opacity-60"
+              : "opacity-100"
+          }`}
+        >
+
+
+          {/* ==================================================
+              REFRESH OVERLAY
+          ================================================== */}
+
+          {refreshing && (
+
+            <div className="absolute inset-0 z-10 flex items-start justify-center pt-10">
+
+              <div className="rounded-full border border-pink-100 bg-white px-4 py-2 text-xs font-semibold text-pink-600 shadow-lg">
+
+                <span className="flex items-center gap-2">
+
+                  <RefreshCw
+                    size={14}
+                    className="animate-spin"
+                  />
+
+                  Updating projects...
+
+                </span>
+
               </div>
-
-              <p className="text-sm text-gray-500">
-                No projects found.
-              </p>
 
             </div>
 
-          ) : (
-
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-
-              {projects.map((project, index) => {
-
-                // =================================
-                // PROGRESS
-                // =================================
-
-                const progress = Math.min(
-                  Math.max(
-                    Number(project.Progress || 0),
-                    0
-                  ),
-                  100
-                );
-
-                const radius = 32;
-
-                const circumference =
-                  2 * Math.PI * radius;
-
-                const progressOffset =
-                  circumference -
-                  (progress / 100) * circumference;
+          )}
 
 
-                // =================================
-                // THEME
-                // =================================
+          {displayedProjects.length > 0 ? (
 
-                const theme =
-                  projectThemes[
-                    index % projectThemes.length
-                  ];
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
+              {displayedProjects.map(
+                (project, index) => {
 
-                // =================================
-                // STATUS
-                // =================================
-
-                let statusClass = theme.badge;
-
-                if (progress === 100) {
-                  statusClass =
-                    "bg-green-100 text-green-700";
-                } else if (progress >= 80) {
-                  statusClass =
-                    "bg-orange-100 text-orange-700";
-                } else if (project.Status === "In Progress") {
-                  statusClass =
-                    "bg-blue-100 text-blue-700";
-                }
+                  const progress =
+                    Math.min(
+                      100,
+                      Math.max(
+                        0,
+                        Number(
+                          project.Progress
+                        ) || 0
+                      )
+                    );
 
 
-                return (
+                  const status =
+                    String(
+                      project.Status ||
+                      ""
+                    )
+                      .trim();
 
-                  <Link
-                    key={project.ID}
-                    to={`/projects/${project.ID}`}
-                    style={{
-                      animationDelay: `${0.7 + index * 0.1}s`,
-                    }}
-                    className={`
-                      relative
-                      block
-                      overflow-hidden
-                      bg-gradient-to-br
-                      ${theme.card}
-                      border
-                      ${
-                        progress === 100
-                          ? "border-green-200"
-                          : theme.border
+
+                  const theme =
+                    projectThemes[
+                      index %
+                      projectThemes.length
+                    ];
+
+
+                  const completed =
+                    progress >= 100 ||
+                    status
+                      .toLowerCase() ===
+                      "completed";
+
+
+                  return (
+
+                    <Link
+                      key={
+                        project.ID ||
+                        index
                       }
-                      shadow-sm
-                      rounded-2xl
-                      dashboard-card
-                      project-card
-                    `}
-                  >
-
-                    {/* TOP COLOR BAR */}
-
-                    <div
-                      className={`
-                        absolute
-                        top-0
-                        left-0
-                        right-0
-                        h-1
-                        ${
-                          progress === 100
-                            ? "bg-green-500"
-                            : theme.top
-                        }
-                      `}
-                    ></div>
+                      to={`/projects/${project.ID}`}
+                      className="group overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg"
+                    >
 
 
-                    {/* SOFT GLOW */}
+                      {/* ==================================================
+                          CARD ACCENT
+                      ================================================== */}
 
-                    <div
-                      className={`
-                        absolute
-                        w-24
-                        h-24
-                        rounded-full
-                        -right-8
-                        -top-8
-                        ${
-                          progress === 100
-                            ? "bg-green-200"
-                            : theme.glow
-                        }
-                        opacity-20
-                        blur-2xl
-                      `}
-                    ></div>
+                      <div
+                        className={`h-1.5 bg-gradient-to-r ${theme.bg}`}
+                      />
 
 
-                    <div className="relative z-10 p-5">
+                      <div className="p-5">
 
-                      {/* LOGO + PROGRESS */}
 
-                      <div className="flex items-center justify-between">
+                        {/* ==================================================
+                            LOGO + STATUS
+                        ================================================== */}
 
-                        {/* LOGO */}
+                        <div className="mb-4 flex items-start justify-between">
 
-                        <div
-                          className={`
-                            flex
-                            items-center
-                            justify-center
-                            w-20
-                            h-20
-                            overflow-hidden
-                            border
-                            rounded-2xl
-                            project-logo
-                            ${
-                              progress === 100
-                                ? "bg-green-100 border-green-200"
-                                : theme.logo
-                            }
-                          `}
-                        >
+                          <div
+                            className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl ${theme.light}`}
+                          >
 
-                          {project.Logo ? (
+                            {project.Logo ? (
 
-                            <img
-                              src={project.Logo}
-                              alt={`${project.Title} logo`}
-                              className="object-contain w-full h-full p-2"
-                              loading="lazy"
-                            />
+                              <img
+                                src={project.Logo}
+                                alt=""
+                                loading="lazy"
+                                decoding="async"
+                                className="h-full w-full object-cover"
+                              />
 
-                          ) : (
+                            ) : (
 
-                            <span
-                              className={`
-                                text-xl
-                                font-bold
-                                ${
-                                  progress === 100
-                                    ? "text-green-600"
-                                    : theme.logoText
+                              <FolderKanban
+                                size={23}
+                                className={
+                                  theme.text
                                 }
-                              `}
-                            >
-                              MF
-                            </span>
+                              />
 
-                          )}
+                            )}
+
+                          </div>
+
+
+                          {/* STATUS */}
+
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                              completed
+                                ? "bg-green-50 text-green-600"
+                                : status
+                                    .toLowerCase()
+                                    .includes(
+                                      "hold"
+                                    )
+                                  ? "bg-amber-50 text-amber-600"
+                                  : "bg-blue-50 text-blue-600"
+                            }`}
+                          >
+
+                            {completed
+                              ? "Completed"
+                              : status ||
+                                "Ongoing"}
+
+                          </span>
 
                         </div>
 
 
-                        {/* CIRCULAR PROGRESS */}
+                        {/* ==================================================
+                            TITLE
+                        ================================================== */}
 
-                        <div className="relative flex items-center justify-center w-20 h-20">
+                        <h3 className="line-clamp-2 min-h-[48px] text-base font-bold text-slate-900 transition group-hover:text-pink-600">
 
-                          <svg
-                            className="w-20 h-20 -rotate-90"
-                            viewBox="0 0 80 80"
-                          >
+                          {project.Title ||
+                            "Untitled Project"}
 
-                            <circle
-                              cx="40"
-                              cy="40"
-                              r={radius}
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="7"
-                              className="text-gray-200/80"
-                            />
+                        </h3>
 
-                            <circle
-                              cx="40"
-                              cy="40"
-                              r={radius}
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="7"
-                              strokeLinecap="round"
-                              className={`
-                                progress-circle
-                                ${
-                                  progress === 100
-                                    ? "text-green-500"
-                                    : theme.progress
-                                }
-                              `}
-                              strokeDasharray={circumference}
-                              strokeDashoffset={progressOffset}
-                            />
 
-                          </svg>
+                        {/* ==================================================
+                            MANAGER
+                        ================================================== */}
 
-                          <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <p className="mt-2 line-clamp-1 text-xs text-slate-500">
 
-                            <span className="text-sm font-bold text-gray-800">
+                          Manager:{" "}
+
+                          <span className="font-medium text-slate-700">
+
+                            {project.Manager ||
+                              "N/A"}
+
+                          </span>
+
+                        </p>
+
+
+                        {/* ==================================================
+                            TIMELINE
+                        ================================================== */}
+
+                        <p className="mt-1 line-clamp-1 text-xs text-slate-500">
+
+                          Timeline:{" "}
+
+                          <span className="font-medium text-slate-700">
+
+                            {project.Timeline ||
+                              "N/A"}
+
+                          </span>
+
+                        </p>
+
+
+                        {/* ==================================================
+                            PROGRESS
+                        ================================================== */}
+
+                        <div className="mt-5">
+
+                          <div className="mb-2 flex items-center justify-between">
+
+                            <span className="text-xs font-medium text-slate-500">
+
+                              Progress
+
+                            </span>
+
+
+                            <span className="text-xs font-bold text-slate-800">
+
                               {progress}%
+
                             </span>
 
-                            <span className="text-[9px] text-gray-400">
-                              Done
-                            </span>
+                          </div>
+
+
+                          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+
+                            <div
+                              className={`h-full rounded-full bg-gradient-to-r ${theme.bg} transition-all duration-500`}
+                              style={{
+                                width: `${progress}%`,
+                              }}
+                            />
 
                           </div>
 
                         </div>
 
-                      </div>
+
+                        {/* ==================================================
+                            BOTTOM
+                        ================================================== */}
+
+                        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+
+                          <span className="text-xs font-medium text-slate-400">
+
+                            Project #{project.ID}
+
+                          </span>
 
 
-                      {/* TITLE */}
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-pink-600">
 
-                      <div className="mt-5">
+                            View
 
-                        <h3 className="text-base font-bold leading-6 text-gray-800 line-clamp-2">
-                          {project.Title}
-                        </h3>
+                            <ArrowRight
+                              size={14}
+                              className="transition-transform group-hover:translate-x-1"
+                            />
 
-                      </div>
+                          </span>
 
-
-                      {/* STATUS */}
-
-                      <div className="mt-3">
-
-                        <span
-                          className={`
-                            inline-flex
-                            px-2.5
-                            py-1
-                            text-[10px]
-                            font-semibold
-                            rounded-full
-                            ${statusClass}
-                          `}
-                        >
-                          {progress === 100
-                            ? "Completed"
-                            : project.Status}
-                        </span>
+                        </div>
 
                       </div>
 
+                    </Link>
 
-                      {/* DESCRIPTION */}
+                  );
 
-                      <p className="mt-4 text-sm leading-5 text-gray-500 line-clamp-3">
+                }
+              )}
 
-                        {project.Description ||
-                          "No project description available."}
+            </div>
 
-                      </p>
+          ) : (
 
+            <div className="rounded-2xl border border-slate-100 bg-white px-6 py-16 text-center shadow-sm">
 
-                      {/* TIMELINE */}
-
-                      <div className="mt-5">
-
-                        <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-                          Timeline
-                        </p>
-
-                        <p className="mt-1 text-sm font-medium text-gray-700">
-                          {project.Timeline}
-                        </p>
-
-                      </div>
+              <FolderKanban
+                size={40}
+                className="mx-auto text-slate-300"
+              />
 
 
-                      {/* MANAGER */}
+              <h3 className="mt-4 font-semibold text-slate-800">
 
-                      <div className="mt-4">
+                No projects found
 
-                        <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase">
-                          Project Manager
-                        </p>
-
-                        <p className="mt-1 text-sm text-gray-700 truncate">
-                          {project.Manager}
-                        </p>
-
-                      </div>
+              </h3>
 
 
-                      {/* VIEW */}
+              <p className="mt-1 text-sm text-slate-500">
 
-                      <div className="flex items-center justify-between pt-4 mt-5 border-t border-gray-200/70">
+                No project data is currently available.
 
-                        <span className="text-xs font-medium text-gray-400">
-                          Click to view details
-                        </span>
-
-                        <span
-                          className={`
-                            text-sm
-                            font-semibold
-                            view-arrow
-                            ${
-                              progress === 100
-                                ? "text-green-600"
-                                : theme.arrow
-                            }
-                          `}
-                        >
-                          View →
-                        </span>
-
-                      </div>
-
-                    </div>
-
-                  </Link>
-
-                );
-              })}
+              </p>
 
             </div>
 
@@ -818,10 +1136,29 @@ const Dashboard = () => {
 
         </div>
 
+
+        {/* ====================================================
+            SYSTEM STATUS
+        ==================================================== */}
+
+        <div className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400">
+
+          <span className="relative flex h-2 w-2">
+
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+
+          </span>
+
+
+          Data connected to Google Sheets
+
+        </div>
+
       </div>
 
     </div>
-  );
-};
 
-export default Dashboard;
+  );
+}

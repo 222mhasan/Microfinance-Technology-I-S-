@@ -6,6 +6,7 @@ import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Pages/Dashboard";
 import Projects from "./components/Pages/Projects";
 import ProjectDetails from "./components/Pages/ProjectDetails";
+import ActivitySummary from "./components/Pages/ActivitySummary";
 
 const App = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -20,18 +21,11 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-
       {/* Header */}
-      <Header
-        sidebarOpen={sidebarOpen}
-        onMenuClick={toggleSidebar}
-      />
+      <Header sidebarOpen={sidebarOpen} onMenuClick={toggleSidebar} />
 
       {/* Sidebar */}
-      <Sidebar
-        sidebarOpen={sidebarOpen}
-        onClose={closeSidebar}
-      />
+      <Sidebar sidebarOpen={sidebarOpen} onClose={closeSidebar} />
 
       {/* Overlay */}
       {sidebarOpen && (
@@ -43,28 +37,16 @@ const App = () => {
 
       {/* Main Content */}
       <main className="pt-20">
-
         <Routes>
+          <Route path="/" element={<Dashboard />} />
 
-          <Route
-            path="/"
-            element={<Dashboard />}
-          />
+          <Route path="/projects" element={<Projects />} />
 
-          <Route
-            path="/projects"
-            element={<Projects />}
-          />
+          <Route path="/projects/:id" element={<ProjectDetails />} />
 
-          <Route
-            path="/projects/:id"
-            element={<ProjectDetails />}
-          />
-
+          <Route path="/activity-summary" element={<ActivitySummary />} />
         </Routes>
-
       </main>
-
     </div>
   );
 };

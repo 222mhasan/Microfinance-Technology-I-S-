@@ -1,466 +1,604 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  ArrowLeft,
+  ArrowRight,
+  CheckCircle2,
+  Clock3,
+  FolderKanban,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 
-const Projects = () => {
-  const API_URL =
-    "https://script.google.com/macros/s/AKfycbw9ARpnkUgzbxOpxtJVglZvV6dWfN6eqQJ3L-1fTYxJWhYrmNjwuaQqC0Wkxquyq2o/exec";
+import { fetchProjects } from "../../services/api";
+
+
+// ============================================================
+// PROJECT THEMES
+// ============================================================
+
+const projectThemes = [
+  {
+    bg: "from-pink-500 to-rose-500",
+    light: "bg-pink-50",
+    text: "text-pink-600",
+  },
+  {
+    bg: "from-blue-500 to-indigo-500",
+    light: "bg-blue-50",
+    text: "text-blue-600",
+  },
+  {
+    bg: "from-emerald-500 to-green-500",
+    light: "bg-emerald-50",
+    text: "text-emerald-600",
+  },
+  {
+    bg: "from-purple-500 to-violet-500",
+    light: "bg-purple-50",
+    text: "text-purple-600",
+  },
+  {
+    bg: "from-orange-500 to-amber-500",
+    light: "bg-orange-50",
+    text: "text-orange-600",
+  },
+];
+
+
+// ============================================================
+// PROJECTS PAGE
+// ============================================================
+
+export default function Projects() {
 
   const [projects, setProjects] = useState([]);
+
   const [loading, setLoading] = useState(true);
+
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
 
-  // ==========================================
-  // PROJECT THEMES
-  // ==========================================
+  const [statusFilter, setStatusFilter] =
+    useState("All");
 
-  const projectThemes = [
-    {
-      card: "from-pink-50 via-white to-rose-50",
-      border: "border-pink-200",
-      top: "bg-pink-500",
-      logo: "bg-pink-100 border-pink-200",
-      logoText: "text-pink-600",
-      progress: "text-pink-600",
-      progressBar: "bg-pink-500",
-      badge: "bg-pink-100 text-pink-700",
-      arrow: "text-pink-600",
-      glow: "bg-pink-200",
-      icon: "text-pink-500",
-    },
-    {
-      card: "from-blue-50 via-white to-cyan-50",
-      border: "border-blue-200",
-      top: "bg-blue-500",
-      logo: "bg-blue-100 border-blue-200",
-      logoText: "text-blue-600",
-      progress: "text-blue-600",
-      progressBar: "bg-blue-500",
-      badge: "bg-blue-100 text-blue-700",
-      arrow: "text-blue-600",
-      glow: "bg-blue-200",
-      icon: "text-blue-500",
-    },
-    {
-      card: "from-purple-50 via-white to-violet-50",
-      border: "border-purple-200",
-      top: "bg-purple-500",
-      logo: "bg-purple-100 border-purple-200",
-      logoText: "text-purple-600",
-      progress: "text-purple-600",
-      progressBar: "bg-purple-500",
-      badge: "bg-purple-100 text-purple-700",
-      arrow: "text-purple-600",
-      glow: "bg-purple-200",
-      icon: "text-purple-500",
-    },
-    {
-      card: "from-emerald-50 via-white to-green-50",
-      border: "border-emerald-200",
-      top: "bg-emerald-500",
-      logo: "bg-emerald-100 border-emerald-200",
-      logoText: "text-emerald-600",
-      progress: "text-emerald-600",
-      progressBar: "bg-emerald-500",
-      badge: "bg-emerald-100 text-emerald-700",
-      arrow: "text-emerald-600",
-      glow: "bg-emerald-200",
-      icon: "text-emerald-500",
-    },
-    {
-      card: "from-orange-50 via-white to-amber-50",
-      border: "border-orange-200",
-      top: "bg-orange-500",
-      logo: "bg-orange-100 border-orange-200",
-      logoText: "text-orange-600",
-      progress: "text-orange-600",
-      progressBar: "bg-orange-500",
-      badge: "bg-orange-100 text-orange-700",
-      arrow: "text-orange-600",
-      glow: "bg-orange-200",
-      icon: "text-orange-500",
-    },
-  ];
 
-  // ==========================================
-  // FETCH PROJECTS
-  // ==========================================
+  // ==========================================================
+  // LOAD PROJECTS
+  // ==========================================================
 
-  const fetchProjects = async (isRefresh = false) => {
+  const loadProjects = async (
+    forceRefresh = false
+  ) => {
+
+    setError("");
+
     try {
-      if (isRefresh) {
+
+      if (forceRefresh) {
+
         setRefreshing(true);
+
       } else {
+
         setLoading(true);
+
       }
 
-      setError("");
 
-      const controller = new AbortController();
+      const data =
+        await fetchProjects(
+          forceRefresh
+        );
 
-      const timeout = setTimeout(() => {
-        controller.abort();
-      }, 10000);
 
-      const response = await fetch(API_URL, {
-        signal: controller.signal,
-      });
+      setProjects(data);
 
-      clearTimeout(timeout);
+    } catch (err) {
 
-      if (!response.ok) {
-        throw new Error("Failed to load projects");
-      }
+      console.error(
+        "Projects Error:",
+        err
+      );
 
-      const data = await response.json();
 
-      if (!Array.isArray(data)) {
-        throw new Error("Invalid data received");
-      }
-
-      // ==========================================
-      // LATEST GOOGLE SHEET ENTRY FIRST
-      // ==========================================
-
-      const latestFirst = [...data].reverse();
-
-      setProjects(latestFirst);
-
-    } catch (error) {
-      console.error("Error loading projects:", error);
-
-      if (error.name === "AbortError") {
-        setError("The server is taking too long to respond.");
-      } else {
-        setError("Unable to load projects.");
-      }
+      setError(
+        err.message ||
+        "Unable to load projects."
+      );
 
     } finally {
+
       setLoading(false);
+
       setRefreshing(false);
+
     }
+
   };
 
+
+  // ==========================================================
+  // INITIAL LOAD
+  // ==========================================================
+
   useEffect(() => {
-    fetchProjects();
+
+    loadProjects();
+
   }, []);
 
-  // ==========================================
-  // STATUS LIST
-  // ==========================================
 
-  const statuses = useMemo(() => {
-    const uniqueStatuses = [
-      ...new Set(
-        projects
-          .map((project) => project.Status)
-          .filter(Boolean)
-      ),
-    ];
+  // ==========================================================
+  // FILTER PROJECTS
+  // ==========================================================
 
-    return ["All", ...uniqueStatuses];
+  const filteredProjects =
+    useMemo(() => {
+
+      const search =
+        searchTerm
+          .toLowerCase()
+          .trim();
+
+
+      return projects.filter(
+        (project) => {
+
+          // --------------------------------------------------
+          // SEARCH
+          // --------------------------------------------------
+
+          const matchesSearch =
+            !search ||
+            String(
+              project.Title || ""
+            )
+              .toLowerCase()
+              .includes(search) ||
+            String(
+              project.Manager || ""
+            )
+              .toLowerCase()
+              .includes(search) ||
+            String(
+              project.Description || ""
+            )
+              .toLowerCase()
+              .includes(search);
+
+
+          // --------------------------------------------------
+          // STATUS
+          // --------------------------------------------------
+
+          const status =
+            String(
+              project.Status || ""
+            )
+              .toLowerCase()
+              .trim();
+
+
+          const progress =
+            Number(
+              project.Progress
+            ) || 0;
+
+
+          let matchesStatus =
+            true;
+
+
+          if (
+            statusFilter ===
+            "Completed"
+          ) {
+
+            matchesStatus =
+              progress >= 100 ||
+              status ===
+                "completed";
+
+          }
+
+
+          if (
+            statusFilter ===
+            "In Progress"
+          ) {
+
+            matchesStatus =
+              status ===
+                "in progress" ||
+              status ===
+                "ongoing";
+
+          }
+
+
+          if (
+            statusFilter ===
+            "On Hold"
+          ) {
+
+            matchesStatus =
+              status ===
+                "on hold";
+
+          }
+
+
+          if (
+            statusFilter ===
+            "Not Started"
+          ) {
+
+            matchesStatus =
+              status ===
+                "not started" ||
+              progress === 0;
+
+          }
+
+
+          return (
+            matchesSearch &&
+            matchesStatus
+          );
+
+        }
+      );
+
+    }, [
+      projects,
+      searchTerm,
+      statusFilter,
+    ]);
+
+
+  // ==========================================================
+  // SUMMARY COUNTS
+  // ==========================================================
+
+  const summary = useMemo(() => {
+
+    const total =
+      projects.length;
+
+
+    const completed =
+      projects.filter(
+        (project) => {
+
+          const status =
+            String(
+              project.Status || ""
+            )
+              .toLowerCase()
+              .trim();
+
+          return (
+            Number(project.Progress) >= 100 ||
+            status === "completed"
+          );
+
+        }
+      ).length;
+
+
+    const ongoing =
+      projects.filter(
+        (project) => {
+
+          const status =
+            String(
+              project.Status || ""
+            )
+              .toLowerCase()
+              .trim();
+
+          return (
+            status === "in progress" ||
+            status === "ongoing"
+          );
+
+        }
+      ).length;
+
+
+    const onHold =
+      projects.filter(
+        (project) =>
+          String(
+            project.Status || ""
+          )
+            .toLowerCase()
+            .trim() ===
+          "on hold"
+      ).length;
+
+
+    return {
+      total,
+      completed,
+      ongoing,
+      onHold,
+    };
+
   }, [projects]);
 
-  // ==========================================
-  // FILTER PROJECTS
-  // ==========================================
 
-  const filteredProjects = useMemo(() => {
-    return projects.filter((project) => {
-      const search = searchTerm.toLowerCase().trim();
+  // ==========================================================
+  // LOADING STATE
+  // ==========================================================
 
-      const matchesSearch =
-        !search ||
-        String(project.Title || "")
-          .toLowerCase()
-          .includes(search) ||
-        String(project.Manager || "")
-          .toLowerCase()
-          .includes(search) ||
-        String(project.Description || "")
-          .toLowerCase()
-          .includes(search);
+  if (
+    loading &&
+    projects.length === 0
+  ) {
 
-      const matchesStatus =
-        statusFilter === "All" ||
-        project.Status === statusFilter;
-
-      return matchesSearch && matchesStatus;
-    });
-  }, [projects, searchTerm, statusFilter]);
-
-  // ==========================================
-  // SUMMARY
-  // ==========================================
-
-  const totalProjects = projects.length;
-
-  // Progress is 100% = Completed
-  const completed = projects.filter(
-    (project) => Number(project.Progress || 0) >= 100
-  ).length;
-
-  // Progress below 100% = Active
-  const inProgress = projects.filter(
-    (project) => {
-      const progress = Number(project.Progress || 0);
-
-      return progress > 0 && progress < 100;
-    }
-  ).length;
-
-  // Progress 80% - 99% = Near Completion
-  const nearCompletion = projects.filter(
-    (project) => {
-      const progress = Number(project.Progress || 0);
-
-      return progress >= 80 && progress < 100;
-    }
-  ).length;
-
-  // ==========================================
-  // LOADING
-  // ==========================================
-
-  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[600px] bg-gray-50">
 
-        <div className="text-center">
+      <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
 
-          <div className="relative flex items-center justify-center w-16 h-16 mx-auto mb-5">
+        <div className="mx-auto max-w-7xl">
 
-            <div className="absolute inset-0 border-4 border-pink-100 rounded-full"></div>
+          <div className="mb-6 h-8 w-64 animate-pulse rounded-lg bg-slate-200" />
 
-            <div className="absolute inset-0 border-4 border-transparent rounded-full border-t-pink-600 animate-spin"></div>
 
-            <span className="text-xs font-bold text-pink-600">
-              MF
-            </span>
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+            {[1, 2, 3, 4].map(
+              (item) => (
+
+                <div
+                  key={item}
+                  className="h-24 animate-pulse rounded-2xl bg-white shadow-sm"
+                />
+
+              )
+            )}
 
           </div>
 
-          <h2 className="text-sm font-semibold text-gray-700">
-            Loading Projects
-          </h2>
 
-          <p className="mt-1 text-xs text-gray-400">
-            Fetching the latest project information...
-          </p>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+
+            {[1, 2, 3, 4, 5, 6, 7, 8].map(
+              (item) => (
+
+                <div
+                  key={item}
+                  className="h-72 animate-pulse rounded-2xl bg-white shadow-sm"
+                />
+
+              )
+            )}
+
+          </div>
 
         </div>
 
       </div>
+
     );
+
   }
 
-  // ==========================================
-  // ERROR
-  // ==========================================
 
-  if (error) {
-    return (
-      <div className="min-h-screen p-6 bg-gray-50">
+  // ==========================================================
+  // MAIN UI
+  // ==========================================================
 
-        <div className="max-w-xl p-8 mx-auto mt-10 text-center bg-white border border-red-200 shadow-sm rounded-2xl">
+  return (
 
-          <div className="flex items-center justify-center w-16 h-16 mx-auto mb-5 text-2xl font-bold text-red-600 bg-red-100 rounded-2xl">
-            !
+    <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
+
+      <div className="mx-auto max-w-7xl">
+
+
+        {/* ====================================================
+            HEADER
+        ==================================================== */}
+
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+          <div>
+
+            <div className="mb-2">
+
+              <Link
+                to="/"
+                className="inline-flex items-center gap-1 text-sm font-medium text-slate-500 transition hover:text-pink-600"
+              >
+
+                <ArrowLeft
+                  size={16}
+                />
+
+                Dashboard
+
+              </Link>
+
+            </div>
+
+
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
+
+              All Projects
+
+            </h1>
+
+            <p className="mt-1 text-sm text-slate-500">
+
+              Explore all Microfinance Technology projects
+
+            </p>
+
           </div>
 
-          <h2 className="text-xl font-bold text-gray-800">
-            Unable to Load Projects
-          </h2>
-
-          <p className="mt-2 text-sm text-gray-500">
-            {error}
-          </p>
 
           <button
-            onClick={() => fetchProjects(true)}
-            className="px-6 py-2.5 mt-6 text-sm font-semibold text-white transition bg-pink-600 rounded-lg hover:bg-pink-700 active:scale-95"
+            onClick={() =>
+              loadProjects(true)
+            }
+            disabled={refreshing}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-70"
           >
-            Try Again
+
+            <RefreshCw
+              size={16}
+              className={
+                refreshing
+                  ? "animate-spin"
+                  : ""
+              }
+            />
+
+            {refreshing
+              ? "Refreshing..."
+              : "Refresh"}
+
           </button>
 
         </div>
 
-      </div>
-    );
-  }
 
-  // ==========================================
-  // RETURN
-  // ==========================================
+        {/* ====================================================
+            ERROR
+        ==================================================== */}
 
-  return (
-    <div className="relative min-h-screen p-6 overflow-hidden bg-gray-50">
+        {error && (
 
-      {/* ======================================
-          BACKGROUND DECORATION
-      ====================================== */}
+          <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
 
-      <div className="absolute top-0 right-0 w-80 h-80 bg-pink-100 rounded-full opacity-30 blur-3xl"></div>
-
-      <div className="absolute bottom-0 left-0 w-80 h-80 bg-purple-100 rounded-full opacity-20 blur-3xl"></div>
-
-      <div className="absolute top-1/2 left-1/2 w-72 h-72 bg-blue-100 rounded-full opacity-10 blur-3xl"></div>
-
-      <div className="relative z-10">
-
-        {/* ======================================
-            PAGE HEADER
-        ====================================== */}
-
-        <div className="mb-7">
-
-          <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
-
-            <div>
-
-              <p className="mb-1 text-xs font-bold tracking-[0.2em] text-pink-600 uppercase">
-                Microfinance Technology
-              </p>
-
-              <h1 className="text-3xl font-bold text-gray-800 md:text-4xl">
-                Technology Projects
-              </h1>
-
-              <p className="mt-2 text-sm text-gray-500">
-                Explore ongoing and completed Microfinance Technology projects.
-              </p>
-
-            </div>
-
-            {/* REFRESH BUTTON */}
-
-            <button
-              type="button"
-              onClick={() => fetchProjects(true)}
-              disabled={refreshing}
-              className="inline-flex items-center self-start gap-2 px-4 py-2.5 text-sm font-medium text-gray-700 transition bg-white border border-gray-200 shadow-sm rounded-xl hover:border-pink-300 hover:text-pink-600 hover:shadow-md disabled:opacity-60 lg:self-center"
-            >
-
-              <span
-                className={`text-base ${
-                  refreshing ? "animate-spin" : ""
-                }`}
-              >
-                ↻
-              </span>
-
-              {refreshing ? "Refreshing..." : "Refresh"}
-
-            </button>
+            {error}
 
           </div>
 
-        </div>
+        )}
 
 
-        {/* ======================================
-            SUMMARY
-        ====================================== */}
+        {/* ====================================================
+            SUMMARY CARDS
+        ==================================================== */}
 
-        <div className="grid grid-cols-2 gap-4 mb-7 md:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-          {/* TOTAL */}
+          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
 
-          <div className="relative p-5 overflow-hidden bg-white border border-pink-100 shadow-sm rounded-2xl">
+            <div className="flex items-center justify-between">
 
-            <div className="absolute w-20 h-20 bg-pink-100 rounded-full -right-5 -top-5 opacity-60"></div>
+              <div>
 
-            <div className="relative">
+                <p className="text-sm text-slate-500">
+                  Total Projects
+                </p>
 
-              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-                Total
-              </p>
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {summary.total}
+                </p>
 
-              <p className="mt-2 text-3xl font-bold text-pink-600">
-                {totalProjects}
-              </p>
+              </div>
 
-              <p className="mt-1 text-xs text-gray-400">
-                All projects
-              </p>
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-pink-100 text-pink-600">
+
+                <FolderKanban
+                  size={21}
+                />
+
+              </div>
 
             </div>
 
           </div>
 
 
-          {/* IN PROGRESS */}
+          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
 
-          <div className="relative p-5 overflow-hidden bg-white border border-blue-100 shadow-sm rounded-2xl">
+            <div className="flex items-center justify-between">
 
-            <div className="absolute w-20 h-20 bg-blue-100 rounded-full -right-5 -top-5 opacity-60"></div>
+              <div>
 
-            <div className="relative">
+                <p className="text-sm text-slate-500">
+                  In Progress
+                </p>
 
-              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-                In Progress
-              </p>
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {summary.ongoing}
+                </p>
 
-              <p className="mt-2 text-3xl font-bold text-blue-600">
-                {inProgress}
-              </p>
+              </div>
 
-              <p className="mt-1 text-xs text-gray-400">
-                Active projects
-              </p>
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
 
-            </div>
+                <Clock3
+                  size={21}
+                />
 
-          </div>
-
-
-          {/* NEAR COMPLETION */}
-
-          <div className="relative p-5 overflow-hidden bg-white border border-orange-100 shadow-sm rounded-2xl">
-
-            <div className="absolute w-20 h-20 bg-orange-100 rounded-full -right-5 -top-5 opacity-60"></div>
-
-            <div className="relative">
-
-              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-                Near Completion
-              </p>
-
-              <p className="mt-2 text-3xl font-bold text-orange-500">
-                {nearCompletion}
-              </p>
-
-              <p className="mt-1 text-xs text-gray-400">
-                80% or more
-              </p>
+              </div>
 
             </div>
 
           </div>
 
 
-          {/* COMPLETED */}
+          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
 
-          <div className="relative p-5 overflow-hidden bg-white border border-green-100 shadow-sm rounded-2xl">
+            <div className="flex items-center justify-between">
 
-            <div className="absolute w-20 h-20 bg-green-100 rounded-full -right-5 -top-5 opacity-60"></div>
+              <div>
 
-            <div className="relative">
+                <p className="text-sm text-slate-500">
+                  Completed
+                </p>
 
-              <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-                Completed
-              </p>
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {summary.completed}
+                </p>
 
-              <p className="mt-2 text-3xl font-bold text-green-600">
-                {completed}
-              </p>
+              </div>
 
-              <p className="mt-1 text-xs text-gray-400">
-                100% completed
-              </p>
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-100 text-green-600">
+
+                <CheckCircle2
+                  size={21}
+                />
+
+              </div>
+
+            </div>
+
+          </div>
+
+
+          <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+
+                <p className="text-sm text-slate-500">
+                  On Hold
+                </p>
+
+                <p className="mt-2 text-3xl font-bold text-slate-900">
+                  {summary.onHold}
+                </p>
+
+              </div>
+
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+
+                <Clock3
+                  size={21}
+                />
+
+              </div>
 
             </div>
 
@@ -469,58 +607,71 @@ const Projects = () => {
         </div>
 
 
-        {/* ======================================
+        {/* ====================================================
             SEARCH + FILTER
-        ====================================== */}
+        ==================================================== */}
 
-        <div className="p-4 mb-7 bg-white border border-gray-200 shadow-sm rounded-2xl">
+        <div className="mb-6 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
 
-          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 
-            {/* SEARCH */}
+            {/* Search */}
 
-            <div className="relative flex-1">
+            <div className="relative w-full lg:max-w-md">
 
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                ⌕
-              </span>
+              <Search
+                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
 
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(event) =>
-                  setSearchTerm(event.target.value)
+                  setSearchTerm(
+                    event.target.value
+                  )
                 }
-                placeholder="Search project, manager or description..."
-                className="w-full py-3 pl-11 pr-4 text-sm text-gray-700 transition bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
+                placeholder="Search projects..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-800 outline-none transition focus:border-pink-400 focus:bg-white focus:ring-2 focus:ring-pink-100"
               />
 
             </div>
 
 
-            {/* STATUS FILTER */}
+            {/* Status Filter */}
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap gap-2">
 
-              <span className="hidden text-xs font-semibold text-gray-400 uppercase sm:block">
-                Status:
-              </span>
+              {[
+                "All",
+                "In Progress",
+                "Completed",
+                "On Hold",
+                "Not Started",
+              ].map(
+                (status) => (
 
-              <select
-                value={statusFilter}
-                onChange={(event) =>
-                  setStatusFilter(event.target.value)
-                }
-                className="px-4 py-3 text-sm font-medium text-gray-700 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100"
-              >
+                  <button
+                    key={status}
+                    onClick={() =>
+                      setStatusFilter(
+                        status
+                      )
+                    }
+                    className={`rounded-lg px-3 py-2 text-xs font-semibold transition ${
+                      statusFilter === status
+                        ? "bg-pink-600 text-white"
+                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    }`}
+                  >
 
-                {statuses.map((status) => (
-                  <option key={status} value={status}>
                     {status}
-                  </option>
-                ))}
 
-              </select>
+                  </button>
+
+                )
+              )}
 
             </div>
 
@@ -529,474 +680,302 @@ const Projects = () => {
         </div>
 
 
-        {/* ======================================
-            RESULTS HEADER
-        ====================================== */}
+        {/* ====================================================
+            RESULT COUNT
+        ==================================================== */}
 
-        <div className="flex items-center justify-between mb-5">
+        <div className="mb-4 flex items-center justify-between">
 
-          <div>
+          <p className="text-sm text-slate-500">
 
-            <h2 className="text-lg font-bold text-gray-800">
-              Project Collection
-            </h2>
+            Showing{" "}
 
-            <p className="mt-1 text-xs text-gray-400">
-              Showing {filteredProjects.length} of {totalProjects} projects
-            </p>
+            <span className="font-semibold text-slate-800">
 
-          </div>
+              {filteredProjects.length}
 
-          <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-pink-700 bg-pink-50 rounded-full">
+            </span>{" "}
 
-            <span className="w-2 h-2 bg-pink-500 rounded-full animate-pulse"></span>
+            of{" "}
 
-            Latest First
+            <span className="font-semibold text-slate-800">
 
-          </div>
+              {projects.length}
+
+            </span>{" "}
+
+            projects
+
+          </p>
 
         </div>
 
 
-        {/* ======================================
-            NO PROJECTS
-        ====================================== */}
+        {/* ====================================================
+            PROJECT GRID
+        ==================================================== */}
 
-        {filteredProjects.length === 0 ? (
+        {filteredProjects.length > 0 ? (
 
-          <div className="p-12 text-center bg-white border border-gray-200 shadow-sm rounded-2xl">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
-            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-5 text-xl font-bold text-pink-600 bg-pink-50 rounded-2xl">
-              MF
-            </div>
+            {filteredProjects.map(
+              (project, index) => {
 
-            <h3 className="text-lg font-semibold text-gray-700">
-              No Projects Found
-            </h3>
+                const progress =
+                  Math.min(
+                    100,
+                    Math.max(
+                      0,
+                      Number(
+                        project.Progress
+                      ) || 0
+                    )
+                  );
 
-            <p className="max-w-md mx-auto mt-2 text-sm text-gray-400">
-              Try changing your search keyword or status filter.
-            </p>
 
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm("");
-                setStatusFilter("All");
-              }}
-              className="px-5 py-2 mt-5 text-sm font-medium text-pink-600 transition border border-pink-200 rounded-lg hover:bg-pink-50"
-            >
-              Clear Filters
-            </button>
+                const status =
+                  String(
+                    project.Status ||
+                    ""
+                  ).trim();
+
+
+                const normalizedStatus =
+                  status
+                    .toLowerCase();
+
+
+                const completed =
+                  progress >= 100 ||
+                  normalizedStatus ===
+                    "completed";
+
+
+                const theme =
+                  projectThemes[
+                    index %
+                    projectThemes.length
+                  ];
+
+
+                return (
+
+                  <Link
+                    key={
+                      project.ID ||
+                      index
+                    }
+                    to={`/projects/${project.ID}`}
+                    className="group overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg"
+                  >
+
+                    {/* Accent */}
+
+                    <div
+                      className={`h-1.5 bg-gradient-to-r ${theme.bg}`}
+                    />
+
+
+                    <div className="p-5">
+
+
+                      {/* Top */}
+
+                      <div className="mb-4 flex items-start justify-between">
+
+                        <div
+                          className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl ${theme.light}`}
+                        >
+
+                          {project.Logo ? (
+
+                            <img
+                              src={project.Logo}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              className="h-full w-full object-cover"
+                            />
+
+                          ) : (
+
+                            <FolderKanban
+                              size={23}
+                              className={
+                                theme.text
+                              }
+                            />
+
+                          )}
+
+                        </div>
+
+
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            completed
+                              ? "bg-green-50 text-green-600"
+                              : normalizedStatus.includes(
+                                  "hold"
+                                )
+                              ? "bg-amber-50 text-amber-600"
+                              : "bg-blue-50 text-blue-600"
+                          }`}
+                        >
+
+                          {completed
+                            ? "Completed"
+                            : status ||
+                              "Ongoing"}
+
+                        </span>
+
+                      </div>
+
+
+                      {/* Title */}
+
+                      <h2 className="line-clamp-2 min-h-[48px] text-base font-bold text-slate-900 transition group-hover:text-pink-600">
+
+                        {project.Title ||
+                          "Untitled Project"}
+
+                      </h2>
+
+
+                      {/* Description */}
+
+                      <p className="mt-2 line-clamp-2 min-h-[40px] text-xs leading-5 text-slate-500">
+
+                        {project.Description ||
+                          "No description available."}
+
+                      </p>
+
+
+                      {/* Manager */}
+
+                      <p className="mt-3 line-clamp-1 text-xs text-slate-500">
+
+                        Manager:{" "}
+
+                        <span className="font-medium text-slate-700">
+
+                          {project.Manager ||
+                            "N/A"}
+
+                        </span>
+
+                      </p>
+
+
+                      {/* Timeline */}
+
+                      <p className="mt-1 line-clamp-1 text-xs text-slate-500">
+
+                        Timeline:{" "}
+
+                        <span className="font-medium text-slate-700">
+
+                          {project.Timeline ||
+                            "N/A"}
+
+                        </span>
+
+                      </p>
+
+
+                      {/* Progress */}
+
+                      <div className="mt-5">
+
+                        <div className="mb-2 flex items-center justify-between">
+
+                          <span className="text-xs font-medium text-slate-500">
+
+                            Progress
+
+                          </span>
+
+                          <span className="text-xs font-bold text-slate-800">
+
+                            {progress}%
+
+                          </span>
+
+                        </div>
+
+
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+
+                          <div
+                            className={`h-full rounded-full bg-gradient-to-r ${theme.bg} transition-all duration-500`}
+                            style={{
+                              width: `${progress}%`,
+                            }}
+                          />
+
+                        </div>
+
+                      </div>
+
+
+                      {/* Footer */}
+
+                      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+
+                        <span className="text-xs font-medium text-slate-400">
+
+                          #{project.ID}
+
+                        </span>
+
+
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-pink-600">
+
+                          View Details
+
+                          <ArrowRight
+                            size={14}
+                            className="transition-transform group-hover:translate-x-1"
+                          />
+
+                        </span>
+
+                      </div>
+
+                    </div>
+
+                  </Link>
+
+                );
+
+              }
+            )}
 
           </div>
 
         ) : (
 
-          /* ======================================
-              PROJECT GRID
-          ====================================== */
+          <div className="rounded-2xl border border-slate-100 bg-white px-6 py-16 text-center shadow-sm">
 
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            <FolderKanban
+              size={42}
+              className="mx-auto text-slate-300"
+            />
 
-            {filteredProjects.map((project, index) => {
+            <h3 className="mt-4 font-semibold text-slate-800">
 
-              // =================================
-              // PROGRESS
-              // =================================
+              No projects found
 
-              const progress = Math.min(
-                Math.max(
-                  Number(project.Progress || 0),
-                  0
-                ),
-                100
-              );
+            </h3>
 
-              const radius = 31;
+            <p className="mt-1 text-sm text-slate-500">
 
-              const circumference =
-                2 * Math.PI * radius;
+              Try changing your search or status filter.
 
-              const progressOffset =
-                circumference -
-                (progress / 100) * circumference;
-
-
-              // =================================
-              // THEME
-              // =================================
-
-              const theme =
-                projectThemes[
-                  index % projectThemes.length
-                ];
-
-
-              // =================================
-              // STATUS
-              // =================================
-
-              let statusClass = theme.badge;
-
-              if (progress === 100) {
-                statusClass =
-                  "bg-green-100 text-green-700";
-              } else if (project.Status === "Near Completion") {
-                statusClass =
-                  "bg-orange-100 text-orange-700";
-              } else if (project.Status === "In Progress") {
-                statusClass =
-                  "bg-blue-100 text-blue-700";
-              } else if (project.Status === "Completed") {
-                statusClass =
-                  "bg-green-100 text-green-700";
-              }
-
-
-              return (
-
-                <Link
-                  key={project.ID}
-                  to={`/projects/${project.ID}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`
-                    group
-                    relative
-                    block
-                    overflow-hidden
-                    bg-gradient-to-br
-                    ${theme.card}
-                    border
-                    ${theme.border}
-                    shadow-sm
-                    rounded-2xl
-                    transition-all
-                    duration-300
-                    hover:-translate-y-2
-                    hover:shadow-xl
-                  `}
-                >
-
-                  {/* TOP COLOR BAR */}
-
-                  <div
-                    className={`
-                      absolute
-                      top-0
-                      left-0
-                      right-0
-                      h-1
-                      ${progress === 100
-                        ? "bg-green-500"
-                        : theme.top
-                      }
-                    `}
-                  ></div>
-
-
-                  {/* DECORATIVE GLOW */}
-
-                  <div
-                    className={`
-                      absolute
-                      w-32
-                      h-32
-                      rounded-full
-                      -right-12
-                      -top-12
-                      ${theme.glow}
-                      opacity-20
-                      blur-3xl
-                      transition-transform
-                      duration-500
-                      group-hover:scale-150
-                    `}
-                  ></div>
-
-
-                  <div className="relative z-10 p-5">
-
-                    {/* LOGO + PROGRESS */}
-
-                    <div className="flex items-center justify-between">
-
-                      {/* LOGO */}
-
-                      <div
-                        className={`
-                          flex
-                          items-center
-                          justify-center
-                          w-20
-                          h-20
-                          overflow-hidden
-                          border
-                          rounded-2xl
-                          transition-all
-                          duration-300
-                          group-hover:scale-105
-                          group-hover:rotate-[-3deg]
-                          ${theme.logo}
-                        `}
-                      >
-
-                        {project.Logo ? (
-
-                          <img
-                            src={project.Logo}
-                            alt={`${project.Title} logo`}
-                            className="object-contain w-full h-full p-2"
-                            loading="lazy"
-                          />
-
-                        ) : (
-
-                          <span
-                            className={`text-xl font-bold ${theme.logoText}`}
-                          >
-                            MF
-                          </span>
-
-                        )}
-
-                      </div>
-
-
-                      {/* CIRCULAR PROGRESS */}
-
-                      <div className="relative flex items-center justify-center w-[76px] h-[76px]">
-
-                        <svg
-                          className="w-[76px] h-[76px] -rotate-90"
-                          viewBox="0 0 80 80"
-                        >
-
-                          <circle
-                            cx="40"
-                            cy="40"
-                            r={radius}
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="7"
-                            className="text-gray-200/80"
-                          />
-
-                          <circle
-                            cx="40"
-                            cy="40"
-                            r={radius}
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="7"
-                            strokeLinecap="round"
-                            className={`
-                              ${
-                                progress === 100
-                                  ? "text-green-500"
-                                  : theme.progress
-                              }
-                            `}
-                            strokeDasharray={circumference}
-                            strokeDashoffset={progressOffset}
-                          />
-
-                        </svg>
-
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-
-                          <span className="text-sm font-bold text-gray-800">
-                            {progress}%
-                          </span>
-
-                          <span className="text-[9px] text-gray-400">
-                            Progress
-                          </span>
-
-                        </div>
-
-                      </div>
-
-                    </div>
-
-
-                    {/* TITLE */}
-
-                    <div className="mt-5">
-
-                      <h3 className="text-lg font-bold leading-6 text-gray-800 transition-colors duration-200 line-clamp-2 group-hover:text-pink-700">
-                        {project.Title}
-                      </h3>
-
-                    </div>
-
-
-                    {/* STATUS */}
-
-                    <div className="mt-3">
-
-                      <span
-                        className={`
-                          inline-flex
-                          px-2.5
-                          py-1
-                          text-[10px]
-                          font-bold
-                          rounded-full
-                          ${statusClass}
-                        `}
-                      >
-                        {progress === 100
-                          ? "Completed"
-                          : project.Status || "Unknown"}
-                      </span>
-
-                    </div>
-
-
-                    {/* DESCRIPTION */}
-
-                    <p className="mt-4 text-sm leading-5 text-gray-500 line-clamp-3">
-                      {project.Description ||
-                        "No project description available."}
-                    </p>
-
-
-                    {/* INFORMATION */}
-
-                    <div className="grid grid-cols-1 gap-3 mt-5">
-
-                      {/* TIMELINE */}
-
-                      <div className="p-3 bg-white/70 border border-white/80 rounded-xl">
-
-                        <p className="text-[9px] font-bold tracking-wider text-gray-400 uppercase">
-                          Timeline
-                        </p>
-
-                        <p className="mt-1 text-sm font-semibold text-gray-700">
-                          {project.Timeline || "Not Available"}
-                        </p>
-
-                      </div>
-
-
-                      {/* MANAGER */}
-
-                      <div className="p-3 bg-white/70 border border-white/80 rounded-xl">
-
-                        <p className="text-[9px] font-bold tracking-wider text-gray-400 uppercase">
-                          Project Manager
-                        </p>
-
-                        <p className="mt-1 text-sm font-semibold text-gray-700 truncate">
-                          {project.Manager || "Not Available"}
-                        </p>
-
-                      </div>
-
-
-                      {/* BUDGET */}
-
-                      {project.Budget && (
-
-                        <div className="p-3 bg-white/70 border border-white/80 rounded-xl">
-
-                          <p className="text-[9px] font-bold tracking-wider text-gray-400 uppercase">
-                            Budget
-                          </p>
-
-                          <p className="mt-1 text-sm font-semibold text-emerald-600 break-words">
-                            {project.Budget}
-                          </p>
-
-                        </div>
-
-                      )}
-
-                    </div>
-
-
-                    {/* PROGRESS BAR */}
-
-                    <div className="mt-5">
-
-                      <div className="flex items-center justify-between mb-2">
-
-                        <span className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">
-                          Project Progress
-                        </span>
-
-                        <span
-                          className={`text-xs font-bold ${
-                            progress === 100
-                              ? "text-green-600"
-                              : theme.progress
-                          }`}
-                        >
-                          {progress}%
-                        </span>
-
-                      </div>
-
-                      <div className="w-full h-2 overflow-hidden bg-gray-200/70 rounded-full">
-
-                        <div
-                          className={`
-                            h-full
-                            rounded-full
-                            transition-all
-                            duration-700
-                            ${
-                              progress === 100
-                                ? "bg-green-500"
-                                : theme.progressBar
-                            }
-                          `}
-                          style={{
-                            width: `${progress}%`,
-                          }}
-                        ></div>
-
-                      </div>
-
-                    </div>
-
-
-                    {/* VIEW DETAILS */}
-
-                    <div className="flex items-center justify-between pt-4 mt-5 border-t border-gray-200/60">
-
-                      <span className="text-xs font-medium text-gray-400">
-                        View project details
-                      </span>
-
-                      <span
-                        className={`
-                          text-sm
-                          font-bold
-                          transition-transform
-                          duration-300
-                          group-hover:translate-x-1
-                          ${
-                            progress === 100
-                              ? "text-green-600"
-                              : theme.arrow
-                          }
-                        `}
-                      >
-                        View →
-                      </span>
-
-                    </div>
-
-                  </div>
-
-                </Link>
-
-              );
-            })}
+            </p>
 
           </div>
 
@@ -1005,7 +984,7 @@ const Projects = () => {
       </div>
 
     </div>
-  );
-};
 
-export default Projects;
+  );
+
+}

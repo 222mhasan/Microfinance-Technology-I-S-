@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 const Header = ({ sidebarOpen, onMenuClick }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -25,12 +26,9 @@ const Header = ({ sidebarOpen, onMenuClick }) => {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 h-20 bg-white border-b border-gray-200 shadow-sm">
-
       <div className="flex items-center justify-between h-full px-5">
-
         {/* Left Section */}
         <div className="flex items-center gap-4">
-
           {/* Hamburger Toggle */}
           <button
             type="button"
@@ -53,9 +51,11 @@ const Header = ({ sidebarOpen, onMenuClick }) => {
           </button>
 
           {/* Logo */}
-          <div className="flex items-center justify-center w-10 h-10 font-bold text-white bg-pink-600 rounded-lg">
-            MF
-          </div>
+          <Link to="/" className="flex items-center">
+            <div className="flex items-center justify-center w-10 h-10 font-bold text-white bg-pink-600 rounded-lg">
+              MF
+            </div>
+          </Link>
 
           {/* Title */}
           <div>
@@ -63,36 +63,25 @@ const Header = ({ sidebarOpen, onMenuClick }) => {
               Microfinance Technology
             </h1>
 
-            <p className="text-xs text-gray-500">
-              Insfratructure & Support
-            </p>
+            <p className="text-xs text-gray-500">Insfratructure & Support</p>
           </div>
-
         </div>
 
         {/* Right Section */}
         <div className="flex items-center gap-5">
-
           {/* Date & Time */}
           <div className="hidden text-right sm:block">
-            <p className="text-sm font-semibold text-gray-700">
-              {time}
-            </p>
+            <p className="text-sm font-semibold text-gray-700">{time}</p>
 
-            <p className="text-xs text-gray-400">
-              {date}
-            </p>
+            <p className="text-xs text-gray-400">{date}</p>
           </div>
 
           {/* User */}
           <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-pink-700 bg-pink-100 rounded-full">
             I&S
           </div>
-
         </div>
-
       </div>
-
     </header>
   );
 };
