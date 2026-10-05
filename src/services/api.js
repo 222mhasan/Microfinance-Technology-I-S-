@@ -1,282 +1,167 @@
-// ============================================================
-// MF TECHNOLOGY PORTAL
-// Central API & Cache Management
-// ============================================================
-
-
-// ============================================================
-// GOOGLE APPS SCRIPT API
-// ============================================================
-
 const API_BASE_URL =
   "https://script.google.com/macros/s/AKfycbx7NLYUAF_swJZLufxwO4RcJ1x1SM4qmjGq_SdanvyKEBkHJnWI8BCL_5LsDLvMwGj_/exec";
 
-
-// ============================================================
-// CACHE CONFIGURATION
-// ============================================================
-
-const CACHE_TIME = 2 * 60 * 1000; // 2 minutes
-
-const REQUEST_TIMEOUT = 8000; // 8 seconds
-
+  const CACHE_TIME = 2 * 60 * 1000;
+const REQUEST_TIMEOUT = 20000;
 
 const CACHE_KEYS = {
   projects: "mf_technology_projects",
   activitySummary: "mf_technology_activity_summary",
+  individualTask: "mf_technology_individual_task",
 };
 
+// --------------------------------------------------
+// Generic API Fetch
+// --------------------------------------------------
 
-// ============================================================
-// GENERIC API FETCH FUNCTION
-// ============================================================
-
-async function fetchFromAPI(
-  url,
-  cacheKey,
-  forceRefresh = false
-) {
-
-  // ----------------------------------------------------------
-  // 1. CHECK BROWSER CACHE
-  // ----------------------------------------------------------
+async function fetchFromAPI(url, cacheKey, forceRefresh = false) {
+  // -----------------------------------------------
+  // Check browser cache
+  // -----------------------------------------------
 
   if (!forceRefresh) {
-
-    const cached =
-      sessionStorage.getItem(cacheKey);
+    const cached = sessionStorage.getItem(cacheKey);
 
     if (cached) {
-
       try {
+        const parsed = JSON.parse(cached);
 
-        const parsed =
-          JSON.parse(cached);
+        const cacheAge = Date.now() - parsed.timestamp;
 
-        const cacheAge =
-          Date.now() - parsed.timestamp;
-
-        if (
-          cacheAge < CACHE_TIME &&
-          Array.isArray(parsed.data)
-        ) {
+        if (cacheAge < CACHE_TIME && Array.isArray(parsed.data)) {
+          console.log(`Using cached data: ${cacheKey}`);
 
           return parsed.data;
-
         }
-
       } catch (error) {
+        console.warn("Invalid cache:", error);
 
-        console.warn(
-          "Invalid cache:",
-          error
-        );
-
-        sessionStorage.removeItem(
-          cacheKey
-        );
-
+        sessionStorage.removeItem(cacheKey);
       }
-
     }
-
   }
 
+  // -----------------------------------------------
+  // Request timeout
+  // -----------------------------------------------
 
-  // ----------------------------------------------------------
-  // 2. CREATE REQUEST TIMEOUT
-  // ----------------------------------------------------------
+  const controller = new AbortController();
 
-  const controller =
-    new AbortController();
-
-  const timeout =
-    setTimeout(
-      () => controller.abort(),
-      REQUEST_TIMEOUT
-    );
-
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, REQUEST_TIMEOUT);
 
   try {
+    console.log("API Request Started:", url);
 
-    // --------------------------------------------------------
-    // 3. REQUEST API
-    // --------------------------------------------------------
+    const response = await fetch(url, {
+      method: "GET",
+      signal: controller.signal,
+      redirect: "follow",
+      cache: "no-store",
+    });
 
-    const response =
-      await fetch(
-        url,
-        {
-          signal: controller.signal,
-        }
-      );
+    console.log("API Response Status:", response.status);
 
+    console.log("API Response URL:", response.url);
 
     if (!response.ok) {
-
-      throw new Error(
-        `API request failed: ${response.status}`
-      );
-
+      throw new Error(`API request failed: ${response.status}`);
     }
 
+    const data = await response.json();
 
-    // --------------------------------------------------------
-    // 4. CONVERT RESPONSE TO JSON
-    // --------------------------------------------------------
+    console.log(
+      "API Data Received:",
+      Array.isArray(data) ? `Array(${data.length})` : data,
+    );
 
-    const data =
-      await response.json();
-
-
-    // --------------------------------------------------------
-    // 5. CHECK API ERROR
-    // --------------------------------------------------------
-
-    if (
-      data &&
-      data.error
-    ) {
-
-      throw new Error(
-        data.message ||
-        "Google Apps Script returned an error."
-      );
-
+    if (data && data.error) {
+      throw new Error(data.message || "Google Apps Script returned an error.");
     }
 
+    const result = Array.isArray(data) ? data : [];
 
-    const result =
-      Array.isArray(data)
-        ? data
-        : [];
-
-
-    // --------------------------------------------------------
-    // 6. SAVE TO BROWSER CACHE
-    // --------------------------------------------------------
+    // ---------------------------------------------
+    // Save to browser cache
+    // ---------------------------------------------
 
     sessionStorage.setItem(
       cacheKey,
       JSON.stringify({
         timestamp: Date.now(),
         data: result,
-      })
+      }),
     );
-
 
     return result;
-
   } catch (error) {
-
-    if (
-      error.name ===
-      "AbortError"
-    ) {
-
-      throw new Error(
-        "Request timed out. Please try again."
-      );
-
+    if (error.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
     }
 
+    console.error("API Fetch Error:", error);
+
     throw error;
-
   } finally {
-
     clearTimeout(timeout);
-
   }
-
 }
 
+// --------------------------------------------------
+// Projects
+// --------------------------------------------------
 
-// ============================================================
-// PROJECTS API
-// ============================================================
-
-export async function fetchProjects(
-  forceRefresh = false
-) {
-
-  const data =
-    await fetchFromAPI(
-      API_BASE_URL,
-      CACHE_KEYS.projects,
-      forceRefresh
-    );
-
-
-  // ----------------------------------------------------------
-  // Keep latest Google Sheet entries first
-  // ----------------------------------------------------------
-
-  return [
-    ...data,
-  ].reverse();
-
-}
-
-
-// ============================================================
-// ACTIVITY SUMMARY API
-// ============================================================
-
-export async function fetchActivitySummary(
-  forceRefresh = false
-) {
-
-  const url =
-    `${API_BASE_URL}?sheet=ActivitySummary`;
-
-
-  return fetchFromAPI(
-    url,
-    CACHE_KEYS.activitySummary,
-    forceRefresh
+export async function fetchProjects(forceRefresh = false) {
+  const data = await fetchFromAPI(
+    API_BASE_URL,
+    CACHE_KEYS.projects,
+    forceRefresh,
   );
 
+  return [...data].reverse();
 }
 
+// --------------------------------------------------
+// Activity Summary
+// --------------------------------------------------
 
-// ============================================================
-// CLEAR PROJECT CACHE
-// ============================================================
+export async function fetchActivitySummary(forceRefresh = false) {
+  const url = `${API_BASE_URL}?sheet=ActivitySummary`;
+
+  return fetchFromAPI(url, CACHE_KEYS.activitySummary, forceRefresh);
+}
+
+// --------------------------------------------------
+// Individual Tasks
+// --------------------------------------------------
+
+export async function fetchIndividualTasks(forceRefresh = false) {
+  const url = `${API_BASE_URL}?sheet=IndividualTask`;
+
+  return fetchFromAPI(url, CACHE_KEYS.individualTask, forceRefresh);
+}
+
+// --------------------------------------------------
+// Clear individual cache
+// --------------------------------------------------
 
 export function clearProjectsCache() {
-
-  sessionStorage.removeItem(
-    CACHE_KEYS.projects
-  );
-
+  sessionStorage.removeItem(CACHE_KEYS.projects);
 }
-
-
-// ============================================================
-// CLEAR ACTIVITY SUMMARY CACHE
-// ============================================================
 
 export function clearActivitySummaryCache() {
-
-  sessionStorage.removeItem(
-    CACHE_KEYS.activitySummary
-  );
-
+  sessionStorage.removeItem(CACHE_KEYS.activitySummary);
 }
 
-
-// ============================================================
-// CLEAR ALL PORTAL CACHE
-// ============================================================
+export function clearIndividualTaskCache() {
+  sessionStorage.removeItem(CACHE_KEYS.individualTask);
+}
 
 export function clearAllPortalCache() {
+  sessionStorage.removeItem(CACHE_KEYS.projects);
 
-  sessionStorage.removeItem(
-    CACHE_KEYS.projects
-  );
+  sessionStorage.removeItem(CACHE_KEYS.activitySummary);
 
-  sessionStorage.removeItem(
-    CACHE_KEYS.activitySummary
-  );
-
+  sessionStorage.removeItem(CACHE_KEYS.individualTask);
 }

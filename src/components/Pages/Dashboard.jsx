@@ -48,18 +48,79 @@ const projectThemes = [
 
 
 // ============================================================
+// HELPERS
+// ============================================================
+
+const normalize = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+
+const parseBudget = (value) => {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return 0;
+  }
+
+  let budget = String(value).trim();
+
+  // Bangla digits → English digits
+  const banglaDigits = {
+    "০": "0",
+    "১": "1",
+    "২": "2",
+    "৩": "3",
+    "৪": "4",
+    "৫": "5",
+    "৬": "6",
+    "৭": "7",
+    "৮": "8",
+    "৯": "9",
+  };
+
+  budget = budget.replace(
+    /[০-৯]/g,
+    (digit) => banglaDigits[digit]
+  );
+
+  budget = budget
+    .replace(/BDT/gi, "")
+    .replace(/Taka/gi, "")
+    .replace(/Tk/gi, "")
+    .replace(/৳/g, "")
+    .replace(/,/g, "")
+    .replace(/\s/g, "")
+    .replace(/[^0-9.-]/g, "");
+
+  const result = parseFloat(budget);
+
+  return Number.isFinite(result)
+    ? result
+    : 0;
+};
+
+
+// ============================================================
 // DASHBOARD
 // ============================================================
 
 export default function Dashboard() {
 
-  const [projects, setProjects] = useState([]);
+  const [projects, setProjects] =
+    useState([]);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] =
+    useState(true);
 
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] =
+    useState(false);
 
-  const [error, setError] = useState("");
+  const [error, setError] =
+    useState("");
 
 
   // ==========================================================
@@ -70,18 +131,13 @@ export default function Dashboard() {
     forceRefresh = false
   ) => {
 
-    setError("");
-
     try {
 
+      setError("");
+
+
       if (forceRefresh) {
-
         setRefreshing(true);
-
-      } else {
-
-        setLoading(true);
-
       }
 
 
@@ -91,7 +147,9 @@ export default function Dashboard() {
         );
 
 
-      setProjects(data);
+      if (Array.isArray(data)) {
+        setProjects(data);
+      }
 
     } catch (err) {
 
@@ -100,20 +158,23 @@ export default function Dashboard() {
         err
       );
 
-
-      setError(
-        err.message ||
-        "Unable to load projects."
-      );
+      /*
+       * Only show an error if we have
+       * no existing project data.
+       */
+      if (projects.length === 0) {
+        setError(
+          err.message ||
+            "Unable to load projects."
+        );
+      }
 
     } finally {
 
       setLoading(false);
-
       setRefreshing(false);
 
     }
-
   };
 
 
@@ -123,7 +184,7 @@ export default function Dashboard() {
 
   useEffect(() => {
 
-    loadProjects();
+    loadProjects(false);
 
   }, []);
 
@@ -134,214 +195,58 @@ export default function Dashboard() {
 
   const statistics = useMemo(() => {
 
-    const total =
-      projects.length;
+    let completed = 0;
+    let ongoing = 0;
+    let onHold = 0;
+    let totalBudget = 0;
 
 
-    // --------------------------------------------------------
-    // COMPLETED PROJECTS
-    // --------------------------------------------------------
+    for (const project of projects) {
 
-    const completed =
-      projects.filter(
-        (project) =>
-          Number(
-            project.Progress
-          ) >= 100 ||
+      const status =
+        normalize(project.Status);
 
-          String(
-            project.Status || ""
-          )
-            .toLowerCase()
-            .trim() === "completed"
-      ).length;
+      const progress =
+        Number(project.Progress) || 0;
 
 
-    // --------------------------------------------------------
-    // ONGOING PROJECTS
-    // --------------------------------------------------------
-
-    const ongoing =
-      projects.filter(
-        (project) => {
-
-          const status =
-            String(
-              project.Status || ""
-            )
-              .toLowerCase()
-              .trim();
-
-          return (
-            status === "in progress" ||
-            status === "ongoing"
-          );
-
-        }
-      ).length;
+      // Completed
+      if (
+        progress >= 100 ||
+        status === "completed"
+      ) {
+        completed++;
+      }
 
 
-    // --------------------------------------------------------
-    // ON HOLD PROJECTS
-    // --------------------------------------------------------
-
-    const onHold =
-      projects.filter(
-        (project) =>
-          String(
-            project.Status || ""
-          )
-            .toLowerCase()
-            .trim() === "on hold"
-      ).length;
+      // Ongoing
+      if (
+        status === "in progress" ||
+        status === "ongoing"
+      ) {
+        ongoing++;
+      }
 
 
-    // ========================================================
-    // TOTAL BUDGET EXPENDITURE
-    // ========================================================
-
-    const totalBudget =
-      projects.reduce(
-        (
-          total,
-          project
-        ) => {
-
-          // Get Budget value from Google Sheet
-          let budget =
-            project.Budget;
+      // On Hold
+      if (
+        status === "on hold"
+      ) {
+        onHold++;
+      }
 
 
-          // Ignore empty values
-          if (
-            budget === null ||
-            budget === undefined ||
-            budget === ""
-          ) {
+      // Budget
+      totalBudget +=
+        parseBudget(
+          project.Budget
+        );
 
-            return total;
+    }
 
-          }
-
-
-          // Convert to string
-          budget =
-            String(
-              budget
-            ).trim();
-
-
-          // --------------------------------------------------
-          // Remove currency/text formatting
-          // --------------------------------------------------
-
-          budget =
-            budget
-              .replace(
-                /BDT/gi,
-                ""
-              )
-              .replace(
-                /Taka/gi,
-                ""
-              )
-              .replace(
-                /Tk/gi,
-                ""
-              )
-              .replace(
-                /৳/g,
-                ""
-              )
-              .replace(
-                /,/g,
-                ""
-              )
-              .replace(
-                /\s/g,
-                ""
-              );
-
-
-          // --------------------------------------------------
-          // Convert Bangla numbers to English numbers
-          // --------------------------------------------------
-
-          const banglaDigits = {
-            "০": "0",
-            "১": "1",
-            "২": "2",
-            "৩": "3",
-            "৪": "4",
-            "৫": "5",
-            "৬": "6",
-            "৭": "7",
-            "৮": "8",
-            "৯": "9",
-          };
-
-
-          budget =
-            budget.replace(
-              /[০-৯]/g,
-              (digit) =>
-                banglaDigits[digit]
-            );
-
-
-          // --------------------------------------------------
-          // Remove anything except numbers,
-          // decimal point and minus sign
-          // --------------------------------------------------
-
-          budget =
-            budget.replace(
-              /[^0-9.-]/g,
-              ""
-            );
-
-
-          // --------------------------------------------------
-          // Convert to number
-          // --------------------------------------------------
-
-          const numericBudget =
-            parseFloat(
-              budget
-            );
-
-
-          // --------------------------------------------------
-          // Add valid budget
-          // --------------------------------------------------
-
-          if (
-            Number.isFinite(
-              numericBudget
-            )
-          ) {
-
-            return (
-              total +
-              numericBudget
-            );
-
-          }
-
-
-          return total;
-
-        },
-        0
-      );
-
-
-    // ========================================================
-    // RETURN STATISTICS
-    // ========================================================
 
     return {
-      total,
+      total: projects.length,
       completed,
       ongoing,
       onHold,
@@ -352,11 +257,12 @@ export default function Dashboard() {
 
 
   // ==========================================================
-  // FORMAT TOTAL BUDGET
+  // FORMAT BUDGET
   // ==========================================================
 
-  const formattedBudget =
-    new Intl.NumberFormat(
+  const formattedBudget = useMemo(() => {
+
+    return new Intl.NumberFormat(
       "en-BD",
       {
         maximumFractionDigits: 0,
@@ -365,15 +271,18 @@ export default function Dashboard() {
       statistics.totalBudget
     );
 
+  }, [statistics.totalBudget]);
+
 
   // ==========================================================
   // PROJECTS TO DISPLAY
   // ==========================================================
 
   const displayedProjects =
-    projects.slice(
-      0,
-      8
+    useMemo(
+      () =>
+        projects.slice(0, 8),
+      [projects]
     );
 
 
@@ -381,87 +290,59 @@ export default function Dashboard() {
   // OVERVIEW CARDS
   // ==========================================================
 
-  const overviewCards = [
+  const overviewCards = useMemo(
+    () => [
 
-    {
-      title:
-        "Total Projects",
+      {
+        title: "Total Projects",
+        value: statistics.total,
+        icon: FolderKanban,
+        iconStyle:
+          "bg-pink-100 text-pink-600",
+      },
 
-      value:
-        statistics.total,
+      {
+        title: "Ongoing",
+        value: statistics.ongoing,
+        icon: Clock3,
+        iconStyle:
+          "bg-blue-100 text-blue-600",
+      },
 
-      icon:
-        FolderKanban,
+      {
+        title: "Completed",
+        value: statistics.completed,
+        icon: CheckCircle2,
+        iconStyle:
+          "bg-green-100 text-green-600",
+      },
 
-      iconStyle:
-        "bg-pink-100 text-pink-600",
-    },
+      {
+        title: "On Hold",
+        value: statistics.onHold,
+        icon: TrendingUp,
+        iconStyle:
+          "bg-amber-100 text-amber-600",
+      },
 
+      {
+        title: "Total Budget Expenditure",
+        value: `৳${formattedBudget}`,
+        icon: DollarSign,
+        iconStyle:
+          "bg-purple-100 text-purple-600",
+      },
 
-    {
-      title:
-        "Ongoing",
-
-      value:
-        statistics.ongoing,
-
-      icon:
-        Clock3,
-
-      iconStyle:
-        "bg-blue-100 text-blue-600",
-    },
-
-
-    {
-      title:
-        "Completed",
-
-      value:
-        statistics.completed,
-
-      icon:
-        CheckCircle2,
-
-      iconStyle:
-        "bg-green-100 text-green-600",
-    },
-
-
-    {
-      title:
-        "On Hold",
-
-      value:
-        statistics.onHold,
-
-      icon:
-        TrendingUp,
-
-      iconStyle:
-        "bg-amber-100 text-amber-600",
-    },
-
-
-    {
-      title:
-        "Total Budget Expenditure",
-
-      value:
-        `৳${formattedBudget}`,
-
-      icon:
-        DollarSign,
-
-      iconStyle:
-        "bg-purple-100 text-purple-600",
-    },
-
-  ];
+    ],
+    [
+      statistics,
+      formattedBudget,
+    ]
+  );
 
 
   // ==========================================================
-  // INITIAL LOADING STATE
+  // INITIAL LOADING
   // ==========================================================
 
   if (
@@ -475,57 +356,38 @@ export default function Dashboard() {
 
         <div className="mx-auto max-w-7xl">
 
+          {/* Header */}
+          <div className="mb-6">
 
-          {/* ==================================================
-              PAGE HEADER SKELETON
-          ================================================== */}
+            <div className="h-8 w-64 animate-pulse rounded-lg bg-slate-200" />
 
-          <div className="mb-6 flex items-center justify-between">
-
-            <div>
-
-              <div className="h-8 w-72 animate-pulse rounded-lg bg-slate-200" />
-
-              <div className="mt-2 h-4 w-80 animate-pulse rounded bg-slate-200" />
-
-            </div>
-
-
-            <div className="h-11 w-28 animate-pulse rounded-xl bg-slate-200" />
+            <div className="mt-2 h-4 w-80 animate-pulse rounded bg-slate-200" />
 
           </div>
 
 
-          {/* ==================================================
-              OVERVIEW SKELETON
-          ================================================== */}
+          {/* Overview */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-
-            {[
-              1,
-              2,
-              3,
-              4,
-              5,
-            ].map(
+            {[1, 2, 3, 4, 5].map(
               (item) => (
-
                 <div
                   key={item}
-                  className="h-28 animate-pulse rounded-2xl bg-white shadow-sm"
+                  className="
+                    h-28
+                    animate-pulse
+                    rounded-2xl
+                    bg-white
+                    shadow-sm
+                  "
                 />
-
               )
             )}
 
           </div>
 
 
-          {/* ==================================================
-              PROJECT SKELETON
-          ================================================== */}
-
+          {/* Projects */}
           <div className="mt-7">
 
             <div className="mb-4">
@@ -537,25 +399,20 @@ export default function Dashboard() {
             </div>
 
 
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
-              {[
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-                7,
-                8,
-              ].map(
+              {[1, 2, 3, 4].map(
                 (item) => (
-
                   <div
                     key={item}
-                    className="h-72 animate-pulse rounded-2xl bg-white shadow-sm"
+                    className="
+                      h-64
+                      animate-pulse
+                      rounded-2xl
+                      bg-white
+                      shadow-sm
+                    "
                   />
-
                 )
               )}
 
@@ -568,7 +425,6 @@ export default function Dashboard() {
       </div>
 
     );
-
   }
 
 
@@ -584,7 +440,7 @@ export default function Dashboard() {
 
 
         {/* ====================================================
-            PAGE HEADER
+            HEADER
         ==================================================== */}
 
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -592,30 +448,41 @@ export default function Dashboard() {
           <div>
 
             <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-
               Microfinance Technology
-
             </h1>
 
             <p className="mt-1 text-sm text-slate-500">
-
               Technology projects and implementation overview
-
             </p>
 
           </div>
 
 
-          {/* ==================================================
-              REFRESH BUTTON
-          ================================================== */}
-
           <button
+            type="button"
             onClick={() =>
               loadProjects(true)
             }
             disabled={refreshing}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-pink-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-80"
+            className="
+              inline-flex
+              items-center
+              justify-center
+              gap-2
+              rounded-xl
+              bg-pink-600
+              px-4
+              py-2.5
+              text-sm
+              font-semibold
+              text-white
+              shadow-sm
+              transition
+              hover:bg-pink-700
+              hover:shadow-md
+              disabled:cursor-not-allowed
+              disabled:opacity-70
+            "
           >
 
             <RefreshCw
@@ -642,31 +509,37 @@ export default function Dashboard() {
 
         {refreshing && (
 
-          <div className="mb-5 flex items-center gap-3 rounded-xl border border-pink-100 bg-pink-50 px-4 py-3">
+          <div
+            className="
+              mb-5
+              flex
+              items-center
+              gap-3
+              rounded-xl
+              border
+              border-pink-100
+              bg-pink-50
+              px-4
+              py-3
+            "
+          >
 
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm">
-
-              <RefreshCw
-                size={15}
-                className="animate-spin text-pink-600"
-              />
-
-            </div>
-
+            <RefreshCw
+              size={16}
+              className="
+                animate-spin
+                text-pink-600
+              "
+            />
 
             <div>
 
               <p className="text-sm font-semibold text-pink-700">
-
                 Updating project data
-
               </p>
 
-
               <p className="text-xs text-pink-500">
-
-                Fetching the latest information from Google Sheets...
-
+                Fetching the latest information...
               </p>
 
             </div>
@@ -677,28 +550,53 @@ export default function Dashboard() {
 
 
         {/* ====================================================
-            ERROR MESSAGE
+            ERROR
         ==================================================== */}
 
         {error && (
 
-          <div className="mb-5 flex items-center justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div
+            className="
+              mb-5
+              flex
+              items-center
+              justify-between
+              gap-4
+              rounded-xl
+              border
+              border-red-200
+              bg-red-50
+              px-4
+              py-3
+              text-sm
+              text-red-700
+            "
+          >
 
-            <span>
+            <span className="break-words">
               {error}
             </span>
 
-
             <button
+              type="button"
               onClick={() =>
                 loadProjects(true)
               }
               disabled={refreshing}
-              className="shrink-0 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-red-600 shadow-sm transition hover:bg-red-100 disabled:opacity-60"
+              className="
+                shrink-0
+                rounded-lg
+                bg-white
+                px-3
+                py-1.5
+                text-xs
+                font-semibold
+                text-red-600
+                shadow-sm
+                hover:bg-red-100
+              "
             >
-
               Retry
-
             </button>
 
           </div>
@@ -707,15 +605,25 @@ export default function Dashboard() {
 
 
         {/* ====================================================
-            OVERVIEW CARDS
+            OVERVIEW
         ==================================================== */}
 
         <div
-          className={`mb-7 grid grid-cols-1 gap-4 transition-opacity duration-300 sm:grid-cols-2 lg:grid-cols-5 ${
-            refreshing
-              ? "opacity-70"
-              : "opacity-100"
-          }`}
+          className={`
+            mb-7
+            grid
+            grid-cols-2
+            gap-3
+            transition-opacity
+            duration-300
+            sm:grid-cols-2
+            lg:grid-cols-5
+            ${
+              refreshing
+                ? "opacity-70"
+                : "opacity-100"
+            }
+          `}
         >
 
           {overviewCards.map(
@@ -724,41 +632,56 @@ export default function Dashboard() {
               const Icon =
                 card.icon;
 
-
               return (
 
                 <div
                   key={card.title}
-                  className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-md"
+                  className="
+                    rounded-2xl
+                    border
+                    border-slate-100
+                    bg-white
+                    p-4
+                    shadow-sm
+                    transition
+                    duration-200
+                    hover:-translate-y-1
+                    hover:shadow-md
+                    sm:p-5
+                  "
                 >
 
                   <div className="flex items-center justify-between gap-3">
 
                     <div className="min-w-0">
 
-                      <p className="text-sm font-medium text-slate-500">
-
+                      <p className="truncate text-xs font-medium text-slate-500 sm:text-sm">
                         {card.title}
-
                       </p>
 
-
-                      <p className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">
-
+                      <p className="mt-2 truncate text-xl font-bold text-slate-900 sm:text-2xl">
                         {card.value}
-
                       </p>
 
                     </div>
 
 
                     <div
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${card.iconStyle}`}
+                      className={`
+                        flex
+                        h-10
+                        w-10
+                        shrink-0
+                        items-center
+                        justify-center
+                        rounded-xl
+                        sm:h-11
+                        sm:w-11
+                        ${card.iconStyle}
+                      `}
                     >
 
-                      <Icon
-                        size={21}
-                      />
+                      <Icon size={20} />
 
                     </div>
 
@@ -775,7 +698,7 @@ export default function Dashboard() {
 
 
         {/* ====================================================
-            PROJECT SECTION HEADER
+            PROJECT HEADER
         ==================================================== */}
 
         <div className="mb-4 flex items-center justify-between">
@@ -783,35 +706,37 @@ export default function Dashboard() {
           <div>
 
             <h2 className="text-xl font-bold text-slate-900">
-
               Projects
-
             </h2>
 
-
             <p className="mt-1 text-sm text-slate-500">
-
               Latest technology initiatives
-
             </p>
 
           </div>
 
 
-          {/* ==================================================
-              SHOW ALL
-          ================================================== */}
-
           <Link
             to="/projects"
-            className="inline-flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-semibold text-pink-600 transition hover:bg-pink-50 hover:text-pink-700"
+            className="
+              inline-flex
+              items-center
+              gap-1
+              rounded-lg
+              px-3
+              py-2
+              text-sm
+              font-semibold
+              text-pink-600
+              transition
+              hover:bg-pink-50
+              hover:text-pink-700
+            "
           >
 
             Show All
 
-            <ArrowRight
-              size={16}
-            />
+            <ArrowRight size={16} />
 
           </Link>
 
@@ -823,45 +748,30 @@ export default function Dashboard() {
         ==================================================== */}
 
         <div
-          className={`relative transition-opacity duration-300 ${
-            refreshing
-              ? "pointer-events-none opacity-60"
-              : "opacity-100"
-          }`}
+          className={`
+            relative
+            transition-opacity
+            duration-300
+            ${
+              refreshing
+                ? "opacity-60"
+                : "opacity-100"
+            }
+          `}
         >
-
-
-          {/* ==================================================
-              REFRESH OVERLAY
-          ================================================== */}
-
-          {refreshing && (
-
-            <div className="absolute inset-0 z-10 flex items-start justify-center pt-10">
-
-              <div className="rounded-full border border-pink-100 bg-white px-4 py-2 text-xs font-semibold text-pink-600 shadow-lg">
-
-                <span className="flex items-center gap-2">
-
-                  <RefreshCw
-                    size={14}
-                    className="animate-spin"
-                  />
-
-                  Updating projects...
-
-                </span>
-
-              </div>
-
-            </div>
-
-          )}
-
 
           {displayedProjects.length > 0 ? (
 
-            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div
+              className="
+                grid
+                grid-cols-1
+                gap-4
+                sm:grid-cols-2
+                lg:grid-cols-3
+                xl:grid-cols-4
+              "
+            >
 
               {displayedProjects.map(
                 (project, index) => {
@@ -880,23 +790,24 @@ export default function Dashboard() {
 
                   const status =
                     String(
-                      project.Status ||
-                      ""
-                    )
-                      .trim();
+                      project.Status || ""
+                    ).trim();
 
 
                   const theme =
                     projectThemes[
                       index %
-                      projectThemes.length
+                        projectThemes.length
                     ];
+
+
+                  const normalizedStatus =
+                    normalize(status);
 
 
                   const completed =
                     progress >= 100 ||
-                    status
-                      .toLowerCase() ===
+                    normalizedStatus ===
                       "completed";
 
 
@@ -908,30 +819,48 @@ export default function Dashboard() {
                         index
                       }
                       to={`/projects/${project.ID}`}
-                      className="group overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm transition duration-200 hover:-translate-y-1 hover:shadow-lg"
+                      className="
+                        group
+                        overflow-hidden
+                        rounded-2xl
+                        border
+                        border-slate-100
+                        bg-white
+                        shadow-sm
+                        transition
+                        duration-200
+                        hover:-translate-y-1
+                        hover:shadow-lg
+                      "
                     >
 
-
-                      {/* ==================================================
-                          CARD ACCENT
-                      ================================================== */}
-
+                      {/* Accent */}
                       <div
-                        className={`h-1.5 bg-gradient-to-r ${theme.bg}`}
+                        className={`
+                          h-1.5
+                          bg-gradient-to-r
+                          ${theme.bg}
+                        `}
                       />
 
 
                       <div className="p-5">
 
 
-                        {/* ==================================================
-                            LOGO + STATUS
-                        ================================================== */}
-
+                        {/* Logo + Status */}
                         <div className="mb-4 flex items-start justify-between">
 
                           <div
-                            className={`flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl ${theme.light}`}
+                            className={`
+                              flex
+                              h-12
+                              w-12
+                              items-center
+                              justify-center
+                              overflow-hidden
+                              rounded-xl
+                              ${theme.light}
+                            `}
                           >
 
                             {project.Logo ? (
@@ -941,7 +870,11 @@ export default function Dashboard() {
                                 alt=""
                                 loading="lazy"
                                 decoding="async"
-                                className="h-full w-full object-cover"
+                                className="
+                                  h-full
+                                  w-full
+                                  object-cover
+                                "
                               />
 
                             ) : (
@@ -958,99 +891,87 @@ export default function Dashboard() {
                           </div>
 
 
-                          {/* STATUS */}
-
                           <span
-                            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                              completed
-                                ? "bg-green-50 text-green-600"
-                                : status
-                                    .toLowerCase()
-                                    .includes(
+                            className={`
+                              rounded-full
+                              px-2.5
+                              py-1
+                              text-[11px]
+                              font-semibold
+                              ${
+                                completed
+                                  ? "bg-green-50 text-green-600"
+                                  : normalizedStatus.includes(
                                       "hold"
                                     )
                                   ? "bg-amber-50 text-amber-600"
                                   : "bg-blue-50 text-blue-600"
-                            }`}
+                              }
+                            `}
                           >
-
                             {completed
                               ? "Completed"
                               : status ||
                                 "Ongoing"}
-
                           </span>
 
                         </div>
 
 
-                        {/* ==================================================
-                            TITLE
-                        ================================================== */}
-
-                        <h3 className="line-clamp-2 min-h-[48px] text-base font-bold text-slate-900 transition group-hover:text-pink-600">
-
+                        {/* Title */}
+                        <h3
+                          className="
+                            line-clamp-2
+                            min-h-[48px]
+                            text-base
+                            font-bold
+                            text-slate-900
+                            transition
+                            group-hover:text-pink-600
+                          "
+                        >
                           {project.Title ||
                             "Untitled Project"}
-
                         </h3>
 
 
-                        {/* ==================================================
-                            MANAGER
-                        ================================================== */}
-
+                        {/* Manager */}
                         <p className="mt-2 line-clamp-1 text-xs text-slate-500">
 
                           Manager:{" "}
 
                           <span className="font-medium text-slate-700">
-
                             {project.Manager ||
                               "N/A"}
-
                           </span>
 
                         </p>
 
 
-                        {/* ==================================================
-                            TIMELINE
-                        ================================================== */}
-
+                        {/* Timeline */}
                         <p className="mt-1 line-clamp-1 text-xs text-slate-500">
 
                           Timeline:{" "}
 
                           <span className="font-medium text-slate-700">
-
                             {project.Timeline ||
                               "N/A"}
-
                           </span>
 
                         </p>
 
 
-                        {/* ==================================================
-                            PROGRESS
-                        ================================================== */}
-
+                        {/* Progress */}
                         <div className="mt-5">
 
                           <div className="mb-2 flex items-center justify-between">
 
                             <span className="text-xs font-medium text-slate-500">
-
                               Progress
-
                             </span>
 
-
                             <span className="text-xs font-bold text-slate-800">
-
                               {progress}%
-
                             </span>
 
                           </div>
@@ -1059,9 +980,17 @@ export default function Dashboard() {
                           <div className="h-2 overflow-hidden rounded-full bg-slate-100">
 
                             <div
-                              className={`h-full rounded-full bg-gradient-to-r ${theme.bg} transition-all duration-500`}
+                              className={`
+                                h-full
+                                rounded-full
+                                bg-gradient-to-r
+                                transition-all
+                                duration-500
+                                ${theme.bg}
+                              `}
                               style={{
-                                width: `${progress}%`,
+                                width:
+                                  `${progress}%`,
                               }}
                             />
 
@@ -1070,28 +999,41 @@ export default function Dashboard() {
                         </div>
 
 
-                        {/* ==================================================
-                            BOTTOM
-                        ================================================== */}
-
-                        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
+                        {/* Bottom */}
+                        <div
+                          className="
+                            mt-5
+                            flex
+                            items-center
+                            justify-between
+                            border-t
+                            border-slate-100
+                            pt-4
+                          "
+                        >
 
                           <span className="text-xs font-medium text-slate-400">
-
                             Project #{project.ID}
-
                           </span>
 
-
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-pink-600">
-
+                          <span
+                            className="
+                              inline-flex
+                              items-center
+                              gap-1
+                              text-xs
+                              font-semibold
+                              text-pink-600
+                            "
+                          >
                             View
-
                             <ArrowRight
                               size={14}
-                              className="transition-transform group-hover:translate-x-1"
+                              className="
+                                transition-transform
+                                group-hover:translate-x-1
+                              "
                             />
-
                           </span>
 
                         </div>
@@ -1109,25 +1051,30 @@ export default function Dashboard() {
 
           ) : (
 
-            <div className="rounded-2xl border border-slate-100 bg-white px-6 py-16 text-center shadow-sm">
+            <div
+              className="
+                rounded-2xl
+                border
+                border-slate-100
+                bg-white
+                px-6
+                py-16
+                text-center
+                shadow-sm
+              "
+            >
 
               <FolderKanban
                 size={40}
                 className="mx-auto text-slate-300"
               />
 
-
               <h3 className="mt-4 font-semibold text-slate-800">
-
                 No projects found
-
               </h3>
 
-
               <p className="mt-1 text-sm text-slate-500">
-
                 No project data is currently available.
-
               </p>
 
             </div>
@@ -1141,16 +1088,45 @@ export default function Dashboard() {
             SYSTEM STATUS
         ==================================================== */}
 
-        <div className="mt-8 flex items-center justify-center gap-2 text-xs text-slate-400">
+        <div
+          className="
+            mt-8
+            flex
+            items-center
+            justify-center
+            gap-2
+            text-xs
+            text-slate-400
+          "
+        >
 
           <span className="relative flex h-2 w-2">
 
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+            <span
+              className="
+                absolute
+                inline-flex
+                h-full
+                w-full
+                animate-ping
+                rounded-full
+                bg-green-400
+                opacity-75
+              "
+            />
 
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-green-500" />
+            <span
+              className="
+                relative
+                inline-flex
+                h-2
+                w-2
+                rounded-full
+                bg-green-500
+              "
+            />
 
           </span>
-
 
           Data connected to Google Sheets
 

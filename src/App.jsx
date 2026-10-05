@@ -1,54 +1,89 @@
+
 import { useState } from "react";
 import { Routes, Route } from "react-router-dom";
 
 import Header from "./components/Header/Header";
-import Sidebar from "./components/Sidebar";
+import Sidebar from "./components/Sidebar/Sidebar";
+
 import Dashboard from "./components/Pages/Dashboard";
 import Projects from "./components/Pages/Projects";
 import ProjectDetails from "./components/Pages/ProjectDetails";
 import ActivitySummary from "./components/Pages/ActivitySummary";
+import IndividualTask from "./components/Pages/IndividualTask";
 
-const App = () => {
+function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const toggleSidebar = () => {
+  const handleMenuClick = () => {
     setSidebarOpen((previous) => !previous);
   };
 
-  const closeSidebar = () => {
+  const handleSidebarClose = () => {
     setSidebarOpen(false);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <Header sidebarOpen={sidebarOpen} onMenuClick={toggleSidebar} />
+    <div className="min-h-screen bg-slate-50">
 
-      {/* Sidebar */}
-      <Sidebar sidebarOpen={sidebarOpen} onClose={closeSidebar} />
+      {/* ==========================================
+          HEADER
+      ========================================== */}
+      <Header
+        sidebarOpen={sidebarOpen}
+        onMenuClick={handleMenuClick}
+      />
 
-      {/* Overlay */}
-      {sidebarOpen && (
-        <div
-          onClick={closeSidebar}
-          className="fixed inset-0 z-40 bg-black/30"
-        ></div>
-      )}
+      {/* ==========================================
+          SIDEBAR
+      ========================================== */}
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        onClose={handleSidebarClose}
+      />
 
-      {/* Main Content */}
-      <main className="pt-20">
+      {/* ==========================================
+          MAIN CONTENT
+      ========================================== */}
+      <main className="min-h-screen pt-20">
+
         <Routes>
-          <Route path="/" element={<Dashboard />} />
 
-          <Route path="/projects" element={<Projects />} />
+          {/* Dashboard */}
+          <Route
+            path="/"
+            element={<Dashboard />}
+          />
 
-          <Route path="/projects/:id" element={<ProjectDetails />} />
+          {/* Projects */}
+          <Route
+            path="/projects"
+            element={<Projects />}
+          />
 
-          <Route path="/activity-summary" element={<ActivitySummary />} />
+          {/* Project Details */}
+          <Route
+            path="/projects/:id"
+            element={<ProjectDetails />}
+          />
+
+          {/* Individual Task */}
+          <Route
+            path="/individual-task"
+            element={<IndividualTask />}
+          />
+
+          {/* Activity Summary */}
+          <Route
+            path="/activity-summary"
+            element={<ActivitySummary />}
+          />
+
         </Routes>
+
       </main>
+
     </div>
   );
-};
+}
 
 export default App;
