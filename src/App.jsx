@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Routes, Route } from "react-router-dom";
 
@@ -10,6 +9,8 @@ import Projects from "./components/Pages/Projects";
 import ProjectDetails from "./components/Pages/ProjectDetails";
 import ActivitySummary from "./components/Pages/ActivitySummary";
 import IndividualTask from "./components/Pages/IndividualTask";
+import Agenda from "./components/Pages/Agenda";
+import ISProjectDrive from "./components/Pages/ISProjectDrive";
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -24,64 +25,43 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-
       {/* ==========================================
           HEADER
       ========================================== */}
-      <Header
-        sidebarOpen={sidebarOpen}
-        onMenuClick={handleMenuClick}
-      />
+      <Header sidebarOpen={sidebarOpen} onMenuClick={handleMenuClick} />
 
       {/* ==========================================
           SIDEBAR
       ========================================== */}
-      <Sidebar
-        sidebarOpen={sidebarOpen}
-        onClose={handleSidebarClose}
-      />
+      <Sidebar sidebarOpen={sidebarOpen} onClose={handleSidebarClose} />
 
       {/* ==========================================
           MAIN CONTENT
       ========================================== */}
       <main className="min-h-screen pt-20">
-
         <Routes>
-
           {/* Dashboard */}
-          <Route
-            path="/"
-            element={<Dashboard />}
-          />
+          <Route path="/" element={<Dashboard />} />
 
           {/* Projects */}
-          <Route
-            path="/projects"
-            element={<Projects />}
-          />
+          <Route path="/projects" element={<Projects />} />
 
           {/* Project Details */}
-          <Route
-            path="/projects/:id"
-            element={<ProjectDetails />}
-          />
+          <Route path="/projects/:id" element={<ProjectDetails />} />
 
           {/* Individual Task */}
-          <Route
-            path="/individual-task"
-            element={<IndividualTask />}
-          />
+          <Route path="/individual-task" element={<IndividualTask />} />
 
           {/* Activity Summary */}
-          <Route
-            path="/activity-summary"
-            element={<ActivitySummary />}
-          />
+          <Route path="/activity-summary" element={<ActivitySummary />} />
 
+          {/* Agenda */}
+          <Route path="/agenda" element={<Agenda />} />
+
+          {/* IS Project Drive */}
+          <Route path="/is-project-drive" element={<ISProjectDrive />} />
         </Routes>
-
       </main>
-
     </div>
   );
 }

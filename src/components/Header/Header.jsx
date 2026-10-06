@@ -63,7 +63,9 @@ const Header = ({ sidebarOpen, onMenuClick }) => {
               Microfinance Technology
             </h1>
 
-            <p className="text-xs text-gray-500">Insfratructure & Support</p>
+            <p className="text-xs text-gray-500">
+              Infrastructure & Support
+            </p>
           </div>
         </div>
 

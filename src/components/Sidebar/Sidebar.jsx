@@ -1,4 +1,3 @@
-
 import { NavLink } from "react-router-dom";
 
 import {
@@ -6,6 +5,8 @@ import {
   FolderKanban,
   ListTodo,
   BarChart3,
+  CalendarDays,
+  BriefcaseBusiness,
 } from "lucide-react";
 
 const Sidebar = ({ sidebarOpen, onClose }) => {
@@ -33,6 +34,16 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
       path: "/activity-summary",
       icon: BarChart3,
       ariaLabel: "Go to Activity Summary",
+    },
+    {
+      name: "Agenda",
+      path: "/agenda",
+      icon: CalendarDays,
+    },
+    {
+      name: "IS Project & Drive",
+      path: "/is-project-drive",
+      icon: BriefcaseBusiness,
     },
   ];
 
@@ -63,21 +74,15 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
           transition-transform
           duration-300
           ease-in-out
-          ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
-          }
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}
         aria-label="Main sidebar navigation"
       >
-
         {/* ==========================================
             SIDEBAR HEADER
         ========================================== */}
 
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-5">
-
           <div>
             <h2 className="text-sm font-bold text-gray-800">
               Microfinance Technology
@@ -111,31 +116,22 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
             "
             aria-label="Close navigation sidebar"
           >
-            <span
-              className="text-xl leading-none"
-              aria-hidden="true"
-            >
+            <span className="text-xl leading-none" aria-hidden="true">
               ×
             </span>
           </button>
-
         </div>
 
         {/* ==========================================
             NAVIGATION
         ========================================== */}
 
-        <nav
-          className="p-4"
-          aria-label="Primary navigation"
-        >
-
+        <nav className="p-4" aria-label="Primary navigation">
           <p className="mb-3 px-4 text-[10px] font-bold uppercase tracking-widest text-gray-400">
             Main Menu
           </p>
 
           <div className="space-y-1">
-
             {menuItems.map((item) => {
               const Icon = item.icon;
 
@@ -183,7 +179,6 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
                     `
                   }
                 >
-
                   {/* Icon */}
 
                   <span
@@ -203,17 +198,12 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
 
                   {/* Menu Name */}
 
-                  <span>
-                    {item.name}
-                  </span>
-
+                  <span>{item.name}</span>
                 </NavLink>
               );
             })}
-
           </div>
         </nav>
-
       </aside>
     </>
   );
