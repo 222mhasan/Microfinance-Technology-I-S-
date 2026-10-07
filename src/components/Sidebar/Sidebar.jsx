@@ -18,6 +18,11 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
       ariaLabel: "Go to Dashboard",
     },
     {
+      name: "IS Project & Drive",
+      path: "/is-project-drive",
+      icon: BriefcaseBusiness,
+    },
+    {
       name: "Projects",
       path: "/projects",
       icon: FolderKanban,
@@ -40,11 +45,7 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
       path: "/agenda",
       icon: CalendarDays,
     },
-    {
-      name: "IS Project & Drive",
-      path: "/is-project-drive",
-      icon: BriefcaseBusiness,
-    },
+    
   ];
 
   return (

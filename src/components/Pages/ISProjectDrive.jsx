@@ -1,3 +1,4 @@
+
 import React, {
   useCallback,
   useDeferredValue,
@@ -76,7 +77,11 @@ const getStatus = (value) => {
     return "Ongoing";
   }
 
-  if (status === "on hold" || status === "hold" || status === "on-hold") {
+  if (
+    status === "on hold" ||
+    status === "hold" ||
+    status === "on-hold"
+  ) {
     return "On Hold";
   }
 
@@ -197,13 +202,21 @@ const ProjectDetailRow = ({
       }`}
     >
       <div className="flex items-center gap-2 text-sm font-semibold text-gray-600">
-        {Icon && <Icon size={16} className="shrink-0 text-pink-500" />}
+        {Icon && (
+          <Icon
+            size={16}
+            className="shrink-0 text-pink-500"
+          />
+        )}
+
         <span>{label}</span>
       </div>
 
       <div
         className={`text-sm text-gray-800 ${
-          multiline ? "whitespace-pre-wrap break-words" : "break-words"
+          multiline
+            ? "whitespace-pre-wrap break-words"
+            : "break-words"
         }`}
       >
         {value || "-"}
@@ -236,34 +249,55 @@ const ISProjectDrive = () => {
   const [selectedProject, setSelectedProject] = useState(null);
 
   /* =======================================================
+     RESET PAGE SCROLL POSITION
+     
+     When the user enters this page from the sidebar,
+     always start from the top of the page.
+  ======================================================= */
+
+  useEffect(() => {
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+  }, []);
+
+  /* =======================================================
      LOAD DATA
   ======================================================= */
 
-  const loadProjects = useCallback(async (forceRefresh = false) => {
-    try {
-      setError("");
+  const loadProjects = useCallback(
+    async (forceRefresh = false) => {
+      try {
+        setError("");
 
-      if (forceRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
+        if (forceRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+
+        const data = await fetchISProjectDrive(forceRefresh);
+
+        setProjects(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error(
+          "IS Project & Drive loading error:",
+          err
+        );
+
+        setError(
+          err?.message ||
+            "Unable to load IS Project & Drive data."
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-
-      const data = await fetchISProjectDrive(forceRefresh);
-
-      setProjects(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("IS Project & Drive loading error:", err);
-
-      setError(
-        err?.message ||
-          "Unable to load IS Project & Drive data."
-      );
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     loadProjects(false);
@@ -285,7 +319,10 @@ const ISProjectDrive = () => {
     document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener(
+        "keydown",
+        handleEscape
+      );
     };
   }, [selectedProject]);
 
@@ -297,9 +334,6 @@ const ISProjectDrive = () => {
 
   /* =======================================================
      SUMMARY DATA
-     
-     Everything is calculated in ONE LOOP for better
-     performance instead of multiple filter operations.
   ======================================================= */
 
   const summary = useMemo(() => {
@@ -315,7 +349,12 @@ const ISProjectDrive = () => {
     projects.forEach((project) => {
       const status = getStatus(project.Status);
 
-      if (Object.prototype.hasOwnProperty.call(counts, status)) {
+      if (
+        Object.prototype.hasOwnProperty.call(
+          counts,
+          status
+        )
+      ) {
         counts[status]++;
       }
 
@@ -329,7 +368,9 @@ const ISProjectDrive = () => {
       );
     });
 
-    const focalSummary = Array.from(focalMap.entries())
+    const focalSummary = Array.from(
+      focalMap.entries()
+    )
       .map(([name, count]) => ({
         name,
         count,
@@ -360,27 +401,33 @@ const ISProjectDrive = () => {
     let result = projects;
 
     /* FOCAL FILTER */
+
     if (selectedFocal !== "All") {
       const focalQuery = normalize(selectedFocal);
 
       result = result.filter(
         (project) =>
-          normalize(project["Focal-1"] || "Not Assigned") ===
-          focalQuery
+          normalize(
+            project["Focal-1"] || "Not Assigned"
+          ) === focalQuery
       );
     }
 
     /* STATUS FILTER */
+
     if (statusFilter !== "All") {
-      const statusQuery = getStatusKey(statusFilter);
+      const statusQuery =
+        getStatusKey(statusFilter);
 
       result = result.filter(
         (project) =>
-          getStatusKey(project.Status) === statusQuery
+          getStatusKey(project.Status) ===
+          statusQuery
       );
     }
 
     /* SEARCH */
+
     if (query) {
       result = result.filter((project) =>
         Object.values(project).some((value) =>
@@ -392,6 +439,7 @@ const ISProjectDrive = () => {
     }
 
     /* SORT */
+
     const sorted = [...result];
 
     sorted.sort((a, b) => {
@@ -401,8 +449,11 @@ const ISProjectDrive = () => {
         key === "Start Date" ||
         key === "End Date"
       ) {
-        const dateA = parseDate(a[key])?.getTime() || 0;
-        const dateB = parseDate(b[key])?.getTime() || 0;
+        const dateA =
+          parseDate(a[key])?.getTime() || 0;
+
+        const dateB =
+          parseDate(b[key])?.getTime() || 0;
 
         return sortConfig.direction === "asc"
           ? dateA - dateB
@@ -440,7 +491,8 @@ const ISProjectDrive = () => {
     setSortConfig((current) => ({
       key,
       direction:
-        current.key === key && current.direction === "asc"
+        current.key === key &&
+        current.direction === "asc"
           ? "desc"
           : "asc",
     }));
@@ -453,10 +505,6 @@ const ISProjectDrive = () => {
   const handleStatusCardClick = (status) => {
     setStatusFilter(status);
 
-    /*
-      Clicking a status card shows the complete status-wise
-      data instead of combining it with the previous focal.
-    */
     setSelectedFocal("All");
   };
 
@@ -574,10 +622,16 @@ const ISProjectDrive = () => {
             >
               <RefreshCw
                 size={16}
-                className={refreshing ? "animate-spin" : ""}
+                className={
+                  refreshing
+                    ? "animate-spin"
+                    : ""
+                }
               />
 
-              {refreshing ? "Refreshing..." : "Refresh"}
+              {refreshing
+                ? "Refreshing..."
+                : "Refresh"}
             </button>
           </div>
         </div>
@@ -613,7 +667,9 @@ const ISProjectDrive = () => {
             icon={CheckCircle2}
             iconColor="bg-emerald-100 text-emerald-600"
             active={statusFilter === "Done"}
-            onClick={() => handleStatusCardClick("Done")}
+            onClick={() =>
+              handleStatusCardClick("Done")
+            }
           />
 
           <SummaryMetric
@@ -661,7 +717,6 @@ const ISProjectDrive = () => {
           ================================================= */}
 
           <aside className="min-w-0 rounded-xl border border-gray-200 bg-white shadow-sm">
-
             <div className="border-b border-gray-200 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -684,6 +739,7 @@ const ISProjectDrive = () => {
             <div className="p-2">
 
               {/* ALL */}
+
               <button
                 type="button"
                 onClick={() =>
@@ -712,47 +768,55 @@ const ISProjectDrive = () => {
               </button>
 
               {/* FOCAL LIST */}
+
               <div className="max-h-[420px] overflow-y-auto pr-1">
-                {summary.focalSummary.length === 0 ? (
+                {summary.focalSummary.length ===
+                0 ? (
                   <div className="px-3 py-6 text-center text-xs text-gray-500">
                     No focal data available
                   </div>
                 ) : (
-                  summary.focalSummary.map((focal) => (
-                    <button
-                      key={focal.name}
-                      type="button"
-                      onClick={() =>
-                        handleFocalClick(focal.name)
-                      }
-                      className={`mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition ${
-                        selectedFocal === focal.name
-                          ? "bg-pink-50 font-semibold text-pink-700 ring-1 ring-pink-200"
-                          : "text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      <span className="flex min-w-0 items-center gap-2">
-                        <UserRound
-                          size={15}
-                          className="shrink-0"
-                        />
-
-                        <span className="truncate">
-                          {focal.name}
-                        </span>
-                      </span>
-
-                      <span
-                        className={`ml-2 shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          selectedFocal === focal.name
-                            ? "bg-pink-100 text-pink-700"
-                            : "bg-gray-100 text-gray-700"
+                  summary.focalSummary.map(
+                    (focal) => (
+                      <button
+                        key={focal.name}
+                        type="button"
+                        onClick={() =>
+                          handleFocalClick(
+                            focal.name
+                          )
+                        }
+                        className={`mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition ${
+                          selectedFocal ===
+                          focal.name
+                            ? "bg-pink-50 font-semibold text-pink-700 ring-1 ring-pink-200"
+                            : "text-gray-700 hover:bg-gray-50"
                         }`}
                       >
-                        {focal.count}
-                      </span>
-                    </button>
-                  ))
+                        <span className="flex min-w-0 items-center gap-2">
+                          <UserRound
+                            size={15}
+                            className="shrink-0"
+                          />
+
+                          <span className="truncate">
+                            {focal.name}
+                          </span>
+                        </span>
+
+                        <span
+                          className={`ml-2 shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            selectedFocal ===
+                            focal.name
+                              ? "bg-pink-100 text-pink-700"
+                              : "bg-gray-100 text-gray-700"
+                          }`}
+                        >
+                          {focal.count}
+                        </span>
+                      </button>
+                    )
+                  )
                 )}
               </div>
             </div>
@@ -765,6 +829,7 @@ const ISProjectDrive = () => {
           <section className="min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
             {/* TABLE HEADER */}
+
             <div className="border-b border-gray-200 p-4">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
 
@@ -775,22 +840,27 @@ const ISProjectDrive = () => {
                     </h2>
 
                     <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-600">
-                      {filteredProjects.length} records
+                      {filteredProjects.length}{" "}
+                      records
                     </span>
                   </div>
 
                   {(selectedFocal !== "All" ||
                     statusFilter !== "All") && (
                     <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      {selectedFocal !== "All" && (
+                      {selectedFocal !==
+                        "All" && (
                         <span className="rounded-full bg-pink-50 px-2.5 py-1 font-medium text-pink-700">
-                          Focal: {selectedFocal}
+                          Focal:{" "}
+                          {selectedFocal}
                         </span>
                       )}
 
-                      {statusFilter !== "All" && (
+                      {statusFilter !==
+                        "All" && (
                         <span className="rounded-full bg-blue-50 px-2.5 py-1 font-medium text-blue-700">
-                          Status: {statusFilter}
+                          Status:{" "}
+                          {statusFilter}
                         </span>
                       )}
                     </div>
@@ -798,6 +868,7 @@ const ISProjectDrive = () => {
                 </div>
 
                 {/* SEARCH */}
+
                 <div className="relative w-full xl:max-w-xs">
                   <Search
                     size={17}
@@ -808,7 +879,9 @@ const ISProjectDrive = () => {
                     type="text"
                     value={search}
                     onChange={(event) =>
-                      setSearch(event.target.value)
+                      setSearch(
+                        event.target.value
+                      )
                     }
                     placeholder="Search projects..."
                     className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-9 text-sm outline-none transition focus:border-pink-400 focus:bg-white focus:ring-2 focus:ring-pink-100"
@@ -817,7 +890,9 @@ const ISProjectDrive = () => {
                   {search && (
                     <button
                       type="button"
-                      onClick={() => setSearch("")}
+                      onClick={() =>
+                        setSearch("")
+                      }
                       className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                       aria-label="Clear search"
                     >
@@ -828,8 +903,8 @@ const ISProjectDrive = () => {
               </div>
 
               {/* STATUS FILTERS */}
-              <div className="mt-4 flex flex-wrap items-center gap-2">
 
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 {[
                   "All",
                   "Done",
@@ -840,7 +915,9 @@ const ISProjectDrive = () => {
                   <button
                     key={status}
                     type="button"
-                    onClick={() => setStatusFilter(status)}
+                    onClick={() =>
+                      setStatusFilter(status)
+                    }
                     className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
                       statusFilter === status
                         ? "border-pink-500 bg-pink-600 text-white"
@@ -851,8 +928,10 @@ const ISProjectDrive = () => {
                   </button>
                 ))}
 
-                {(selectedFocal !== "All" ||
-                  statusFilter !== "All" ||
+                {(selectedFocal !==
+                  "All" ||
+                  statusFilter !==
+                    "All" ||
                   search) && (
                   <button
                     type="button"
@@ -898,7 +977,9 @@ const ISProjectDrive = () => {
                           <button
                             type="button"
                             onClick={() =>
-                              handleSort(heading)
+                              handleSort(
+                                heading
+                              )
                             }
                             className="inline-flex max-w-full items-center gap-1.5 hover:text-pink-600"
                           >
@@ -921,7 +1002,8 @@ const ISProjectDrive = () => {
                   </thead>
 
                   <tbody className="divide-y divide-gray-100">
-                    {filteredProjects.length === 0 ? (
+                    {filteredProjects.length ===
+                    0 ? (
                       <tr>
                         <td
                           colSpan={6}
@@ -937,13 +1019,17 @@ const ISProjectDrive = () => {
                           </p>
 
                           <p className="mt-1 text-xs text-gray-400">
-                            Try changing your search or filters.
+                            Try changing your
+                            search or filters.
                           </p>
                         </td>
                       </tr>
                     ) : (
                       filteredProjects.map(
-                        (project, index) => (
+                        (
+                          project,
+                          index
+                        ) => (
                           <tr
                             key={
                               project.SN ??
@@ -953,6 +1039,7 @@ const ISProjectDrive = () => {
                             className="transition hover:bg-pink-50/40"
                           >
                             {/* TITLE */}
+
                             <td className="max-w-0 px-3 py-3 lg:px-4">
                               <div className="flex min-w-0 items-center gap-2">
                                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pink-50 text-pink-600">
@@ -963,28 +1050,37 @@ const ISProjectDrive = () => {
 
                                 <span
                                   className="block truncate text-sm font-semibold text-gray-800"
-                                  title={project.Title}
+                                  title={
+                                    project.Title
+                                  }
                                 >
-                                  {project.Title || "-"}
+                                  {project.Title ||
+                                    "-"}
                                 </span>
                               </div>
                             </td>
 
                             {/* FOCAL */}
+
                             <td className="max-w-0 px-3 py-3 lg:px-4">
                               <span
                                 className="block truncate text-sm text-gray-600"
                                 title={
-                                  project["Focal-1"] ||
+                                  project[
+                                    "Focal-1"
+                                  ] ||
                                   "Not Assigned"
                                 }
                               >
-                                {project["Focal-1"] ||
+                                {project[
+                                  "Focal-1"
+                                ] ||
                                   "Not Assigned"}
                               </span>
                             </td>
 
                             {/* START */}
+
                             <td className="px-3 py-3 lg:px-4">
                               <div className="flex items-center gap-1.5 text-sm text-gray-600">
                                 <CalendarDays
@@ -994,13 +1090,16 @@ const ISProjectDrive = () => {
 
                                 <span className="truncate">
                                   {formatDate(
-                                    project["Start Date"]
+                                    project[
+                                      "Start Date"
+                                    ]
                                   )}
                                 </span>
                               </div>
                             </td>
 
                             {/* END */}
+
                             <td className="px-3 py-3 lg:px-4">
                               <div className="flex items-center gap-1.5 text-sm text-gray-600">
                                 <CalendarDays
@@ -1010,20 +1109,26 @@ const ISProjectDrive = () => {
 
                                 <span className="truncate">
                                   {formatDate(
-                                    project["End Date"]
+                                    project[
+                                      "End Date"
+                                    ]
                                   )}
                                 </span>
                               </div>
                             </td>
 
                             {/* STATUS */}
+
                             <td className="px-3 py-3 lg:px-4">
                               <StatusBadge
-                                status={project.Status}
+                                status={
+                                  project.Status
+                                }
                               />
                             </td>
 
                             {/* ACTION */}
+
                             <td className="px-3 py-3 lg:px-4">
                               <button
                                 type="button"
@@ -1052,7 +1157,8 @@ const ISProjectDrive = () => {
             ================================================= */}
 
             <div className="divide-y divide-gray-100 md:hidden">
-              {filteredProjects.length === 0 ? (
+              {filteredProjects.length ===
+              0 ? (
                 <div className="px-4 py-12 text-center">
                   <Search
                     size={32}
@@ -1084,18 +1190,23 @@ const ISProjectDrive = () => {
 
                           <div className="min-w-0">
                             <h3 className="break-words text-sm font-semibold text-gray-800">
-                              {project.Title || "-"}
+                              {project.Title ||
+                                "-"}
                             </h3>
 
                             <p className="mt-1 text-xs text-gray-500">
-                              {project["Focal-1"] ||
+                              {project[
+                                "Focal-1"
+                              ] ||
                                 "Not Assigned"}
                             </p>
                           </div>
                         </div>
 
                         <StatusBadge
-                          status={project.Status}
+                          status={
+                            project.Status
+                          }
                         />
                       </div>
 
@@ -1107,7 +1218,9 @@ const ISProjectDrive = () => {
 
                           <p className="mt-1 text-xs font-medium text-gray-700">
                             {formatDate(
-                              project["Start Date"]
+                              project[
+                                "Start Date"
+                              ]
                             )}
                           </p>
                         </div>
@@ -1119,7 +1232,9 @@ const ISProjectDrive = () => {
 
                           <p className="mt-1 text-xs font-medium text-gray-700">
                             {formatDate(
-                              project["End Date"]
+                              project[
+                                "End Date"
+                              ]
                             )}
                           </p>
                         </div>
@@ -1128,7 +1243,9 @@ const ISProjectDrive = () => {
                       <button
                         type="button"
                         onClick={() =>
-                          setSelectedProject(project)
+                          setSelectedProject(
+                            project
+                          )
                         }
                         className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-3 py-2.5 text-xs font-semibold text-pink-700 hover:bg-pink-600 hover:text-white"
                       >
@@ -1142,6 +1259,7 @@ const ISProjectDrive = () => {
             </div>
 
             {/* FOOTER */}
+
             <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
               <p className="text-xs text-gray-500">
                 Showing{" "}
@@ -1167,7 +1285,10 @@ const ISProjectDrive = () => {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-5"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
               setSelectedProject(null);
             }
           }}
@@ -1175,6 +1296,7 @@ const ISProjectDrive = () => {
           <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
 
             {/* MODAL HEADER */}
+
             <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-pink-600 to-pink-500 p-5 text-white">
               <div className="flex min-w-0 items-start gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15">
@@ -1206,6 +1328,7 @@ const ISProjectDrive = () => {
             </div>
 
             {/* MODAL CONTENT */}
+
             <div className="min-h-0 overflow-y-auto overscroll-contain">
               <div className="divide-y divide-gray-100">
 
@@ -1244,21 +1367,27 @@ const ISProjectDrive = () => {
 
                 <ProjectDetailRow
                   label="Focal-1"
-                  value={selectedProject["Focal-1"]}
+                  value={
+                    selectedProject["Focal-1"]
+                  }
                   icon={UserRound}
                   striped
                 />
 
                 <ProjectDetailRow
                   label="Focal-2"
-                  value={selectedProject["Focal-2"]}
+                  value={
+                    selectedProject["Focal-2"]
+                  }
                   icon={Users}
                 />
 
                 <ProjectDetailRow
                   label="Start Date"
                   value={formatDate(
-                    selectedProject["Start Date"]
+                    selectedProject[
+                      "Start Date"
+                    ]
                   )}
                   icon={CalendarDays}
                   striped
@@ -1267,19 +1396,24 @@ const ISProjectDrive = () => {
                 <ProjectDetailRow
                   label="End Date"
                   value={formatDate(
-                    selectedProject["End Date"]
+                    selectedProject[
+                      "End Date"
+                    ]
                   )}
                   icon={CalendarDays}
                 />
 
                 <ProjectDetailRow
                   label="Duration"
-                  value={selectedProject.Duration}
+                  value={
+                    selectedProject.Duration
+                  }
                   icon={Clock3}
                   striped
                 />
 
                 {/* STATUS */}
+
                 <div className="grid grid-cols-1 gap-1 bg-white px-4 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-gray-600">
                     <CheckCircle2
@@ -1292,14 +1426,18 @@ const ISProjectDrive = () => {
 
                   <div>
                     <StatusBadge
-                      status={selectedProject.Status}
+                      status={
+                        selectedProject.Status
+                      }
                     />
                   </div>
                 </div>
 
                 <ProjectDetailRow
                   label="Stakeholder"
-                  value={selectedProject.Stakeholder}
+                  value={
+                    selectedProject.Stakeholder
+                  }
                   icon={Building2}
                   striped
                   multiline
@@ -1307,22 +1445,28 @@ const ISProjectDrive = () => {
 
                 <ProjectDetailRow
                   label="Budget (If any)"
-                  value={selectedProject["Budget (If any)"]}
+                  value={
+                    selectedProject[
+                      "Budget (If any)"
+                    ]
+                  }
                   icon={Wallet}
                 />
 
                 <ProjectDetailRow
                   label="Remarks"
-                  value={selectedProject.Remarks}
+                  value={
+                    selectedProject.Remarks
+                  }
                   icon={MessageSquareText}
                   striped
                   multiline
                 />
-
               </div>
             </div>
 
             {/* MODAL FOOTER */}
+
             <div className="flex items-center justify-end border-t border-gray-200 bg-gray-50 p-4">
               <button
                 type="button"
