@@ -858,7 +858,7 @@ export default function Projects() {
 
                       <p className="mt-3 line-clamp-1 text-xs text-slate-500">
 
-                        Manager:{" "}
+                        Focal:{" "}
 
                         <span className="font-medium text-slate-700">
 
