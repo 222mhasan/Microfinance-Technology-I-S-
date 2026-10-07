@@ -1,4 +1,3 @@
-
 import React, {
   useCallback,
   useDeferredValue,
@@ -29,7 +28,32 @@ import {
   Building2,
   Wallet,
   MessageSquareText,
+  FileSpreadsheet,
+  FileDown,
 } from "lucide-react";
+
+import * as XLSX from "xlsx";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+
+/* =========================================================
+   EXPORT COLUMNS
+   ONLY THESE FIELDS WILL APPEAR IN EXCEL & PDF
+========================================================= */
+
+const EXPORT_COLUMNS = [
+  "SN",
+  "Type",
+  "FY",
+  "Title",
+  "Activity",
+  "Focal-1",
+  "Focal-2",
+  "Start Date",
+  "End Date",
+  "Duration",
+  "Status",
+];
 
 /* =========================================================
    HELPERS
@@ -45,14 +69,20 @@ const parseDate = (value) => {
 
   const date = new Date(value);
 
-  return Number.isNaN(date.getTime()) ? null : date;
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date;
 };
 
 const formatDate = (value) => {
+  if (!value) return "-";
+
   const date = parseDate(value);
 
   if (!date) {
-    return value || "-";
+    return String(value);
   }
 
   return date.toLocaleDateString("en-GB", {
@@ -65,52 +95,152 @@ const formatDate = (value) => {
 const getStatus = (value) => {
   const status = normalize(value);
 
-  if (status === "done" || status === "completed") {
+  if (
+    status.includes("done") ||
+    status.includes("complete") ||
+    status.includes("completed") ||
+    status.includes("closed")
+  ) {
     return "Done";
   }
 
   if (
-    status === "ongoing" ||
-    status === "in progress" ||
-    status === "in-progress"
-  ) {
-    return "Ongoing";
-  }
-
-  if (
-    status === "on hold" ||
-    status === "hold" ||
-    status === "on-hold"
+    status.includes("hold") ||
+    status.includes("pause") ||
+    status.includes("paused")
   ) {
     return "On Hold";
   }
 
-  if (status === "close" || status === "closed") {
+  if (status.includes("close") || status.includes("cancel")) {
     return "Close";
   }
 
-  return value ? String(value).trim() : "Unknown";
+  if (
+    status.includes("ongoing") ||
+    status.includes("on going") ||
+    status.includes("progress") ||
+    status.includes("working")
+  ) {
+    return "Ongoing";
+  }
+
+  if (!value) {
+    return "Ongoing";
+  }
+
+  return String(value);
 };
 
-const getStatusKey = (value) => normalize(getStatus(value));
+const getStatusKey = (value) => {
+  const status = normalize(getStatus(value));
 
-const getStatusStyle = (status) => {
-  switch (getStatus(status)) {
-    case "Done":
-      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+  if (status === "done") return "done";
+  if (status === "on hold") return "hold";
+  if (status === "close") return "close";
 
-    case "Ongoing":
-      return "bg-blue-100 text-blue-700 border-blue-200";
+  return "ongoing";
+};
 
-    case "On Hold":
-      return "bg-amber-100 text-amber-700 border-amber-200";
+const getStatusStyle = (value) => {
+  const key = getStatusKey(value);
 
-    case "Close":
-      return "bg-slate-100 text-slate-700 border-slate-200";
+  const styles = {
+    done: {
+      badge:
+        "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
+      dot: "bg-emerald-500",
+    },
 
-    default:
-      return "bg-gray-100 text-gray-700 border-gray-200";
+    ongoing: {
+      badge: "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
+      dot: "bg-blue-500",
+    },
+
+    hold: {
+      badge: "bg-amber-50 text-amber-700 ring-1 ring-inset ring-amber-200",
+      dot: "bg-amber-500",
+    },
+
+    close: {
+      badge: "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200",
+      dot: "bg-red-500",
+    },
+  };
+
+  return styles[key] || styles.ongoing;
+};
+
+/* =========================================================
+   EXPORT HELPERS
+========================================================= */
+
+const formatExportValue = (key, value) => {
+  if (value === null || value === undefined || value === "") {
+    return "";
   }
+
+  if (key === "Start Date" || key === "End Date") {
+    return formatDate(value);
+  }
+
+  if (key === "Status") {
+    return getStatus(value);
+  }
+
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  return String(value);
+};
+
+/*
+ * Creates one clean row containing ONLY the 11
+ * selected export columns.
+ */
+const getExportObject = (project) => {
+  const result = {};
+
+  EXPORT_COLUMNS.forEach((column) => {
+    result[column] = formatExportValue(column, project?.[column]);
+  });
+
+  return result;
+};
+
+/*
+ * Used by selected-project detail export.
+ */
+const getProjectDetailExportRows = (project) => {
+  return EXPORT_COLUMNS.map((column) => ({
+    Field: column,
+    Details: formatExportValue(column, project?.[column]),
+  }));
+};
+
+const sanitizeFileName = (value) => {
+  return (
+    String(value || "IS-Project")
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 100) || "IS-Project"
+  );
+};
+
+const getCurrentDateTime = () => {
+  return new Date().toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 };
 
 /* =========================================================
@@ -118,107 +248,78 @@ const getStatusStyle = (status) => {
 ========================================================= */
 
 const StatusBadge = ({ status }) => {
-  const label = getStatus(status);
+  const style = getStatusStyle(status);
 
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${getStatusStyle(
-        label
-      )}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${style.badge}`}
     >
-      {label}
+      <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+
+      {getStatus(status)}
     </span>
   );
 };
 
 /* =========================================================
-   SUMMARY CARD
+   SUMMARY METRIC
 ========================================================= */
 
 const SummaryMetric = ({
+  icon: Icon,
   label,
   value,
-  icon: Icon,
-  iconColor,
-  active = false,
+  colorClass,
   onClick,
+  active = false,
 }) => {
-  const Component = onClick ? "button" : "div";
-
   return (
-    <Component
-      type={onClick ? "button" : undefined}
+    <button
+      type="button"
       onClick={onClick}
-      aria-pressed={onClick ? active : undefined}
-      className={`
-        w-full rounded-xl border bg-white p-4 text-left
-        transition-all duration-200
-        ${
-          onClick
-            ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md"
-            : ""
-        }
-        ${
-          active
-            ? "border-pink-500 ring-2 ring-pink-100 shadow-sm"
-            : "border-gray-200 shadow-sm"
-        }
-      `}
+      className={`group rounded-2xl border p-4 text-left transition-all ${
+        active
+          ? "border-pink-300 bg-pink-50 shadow-sm"
+          : "border-slate-200 bg-white hover:-translate-y-0.5 hover:border-pink-200 hover:shadow-md"
+      }`}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-medium text-gray-500">{label}</p>
-
-          <p className="mt-1 text-2xl font-bold text-gray-800">
-            {value}
-          </p>
-        </div>
-
+      <div className="flex items-center justify-between">
         <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconColor}`}
+          className={`flex h-10 w-10 items-center justify-center rounded-xl ${colorClass}`}
         >
           <Icon size={20} />
         </div>
+
+        <ArrowUpDown
+          size={14}
+          className="text-slate-300 transition group-hover:text-pink-400"
+        />
       </div>
-    </Component>
+
+      <p className="mt-3 text-xs font-medium text-slate-500">{label}</p>
+
+      <p className="mt-1 text-2xl font-bold text-slate-900">{value}</p>
+    </button>
   );
 };
 
 /* =========================================================
-   DETAIL ROW
+   PROJECT DETAIL ROW
 ========================================================= */
 
-const ProjectDetailRow = ({
-  label,
-  value,
-  icon: Icon,
-  striped = false,
-  multiline = false,
-}) => {
+const ProjectDetailRow = ({ icon: Icon, label, value, fullWidth = false }) => {
   return (
     <div
-      className={`grid grid-cols-1 gap-1 px-4 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4 ${
-        striped ? "bg-gray-50" : "bg-white"
+      className={`rounded-xl border border-slate-200 bg-slate-50 p-4 ${
+        fullWidth ? "md:col-span-2" : ""
       }`}
     >
-      <div className="flex items-center gap-2 text-sm font-semibold text-gray-600">
-        {Icon && (
-          <Icon
-            size={16}
-            className="shrink-0 text-pink-500"
-          />
-        )}
-
-        <span>{label}</span>
+      <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <Icon size={14} />
+        {label}
       </div>
 
-      <div
-        className={`text-sm text-gray-800 ${
-          multiline
-            ? "whitespace-pre-wrap break-words"
-            : "break-words"
-        }`}
-      >
+      <div className="whitespace-pre-wrap break-words text-sm font-medium text-slate-800">
         {value || "-"}
       </div>
     </div>
@@ -234,293 +335,728 @@ const ISProjectDrive = () => {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
 
   const [selectedFocal, setSelectedFocal] = useState("All");
+
   const [statusFilter, setStatusFilter] = useState("All");
 
   const [search, setSearch] = useState("");
 
   const [sortConfig, setSortConfig] = useState({
-    key: "Start Date",
+    key: "__sheetOrder",
     direction: "desc",
   });
 
   const [selectedProject, setSelectedProject] = useState(null);
 
+  const deferredSearch = useDeferredValue(search);
+
   /* =======================================================
-     RESET PAGE SCROLL POSITION
-     
-     When the user enters this page from the sidebar,
-     always start from the top of the page.
+     LOAD GOOGLE SHEET DATA
+  ======================================================= */
+
+  const loadProjects = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
+      setError("");
+
+      const data = await fetchISProjectDrive();
+
+      if (!Array.isArray(data)) {
+        throw new Error("Invalid data received from Google Sheet.");
+      }
+
+      const normalizedData = data.map((item, index) => ({
+        ...item,
+        __sheetOrder: index,
+      }));
+
+      setProjects(normalizedData);
+    } catch (err) {
+      console.error("IS Project & Drive loading error:", err);
+
+      setError(err?.message || "Unable to load IS Project & Drive data.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
+
+  /* =======================================================
+     SCROLL TOP
   ======================================================= */
 
   useEffect(() => {
     window.scrollTo({
       top: 0,
-      left: 0,
-      behavior: "auto",
+      behavior: "smooth",
     });
   }, []);
 
   /* =======================================================
-     LOAD DATA
-  ======================================================= */
-
-  const loadProjects = useCallback(
-    async (forceRefresh = false) => {
-      try {
-        setError("");
-
-        if (forceRefresh) {
-          setRefreshing(true);
-        } else {
-          setLoading(true);
-        }
-
-        const data = await fetchISProjectDrive(forceRefresh);
-
-        setProjects(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error(
-          "IS Project & Drive loading error:",
-          err
-        );
-
-        setError(
-          err?.message ||
-            "Unable to load IS Project & Drive data."
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    []
-  );
-
-  useEffect(() => {
-    loadProjects(false);
-  }, [loadProjects]);
-
-  /* =======================================================
-     ESCAPE KEY FOR MODAL
+     ESCAPE MODAL
   ======================================================= */
 
   useEffect(() => {
-    if (!selectedProject) return;
-
     const handleEscape = (event) => {
       if (event.key === "Escape") {
         setSelectedProject(null);
       }
     };
 
-    document.addEventListener("keydown", handleEscape);
+    window.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener(
-        "keydown",
-        handleEscape
-      );
+      window.removeEventListener("keydown", handleEscape);
     };
-  }, [selectedProject]);
+  }, []);
 
   /* =======================================================
-     DEFER SEARCH
-  ======================================================= */
-
-  const deferredSearch = useDeferredValue(search);
-
-  /* =======================================================
-     SUMMARY DATA
+     SUMMARY
   ======================================================= */
 
   const summary = useMemo(() => {
-    const counts = {
-      Done: 0,
-      Ongoing: 0,
-      "On Hold": 0,
-      Close: 0,
-    };
+    const focalMap = {};
 
-    const focalMap = new Map();
+    let done = 0;
+    let ongoing = 0;
+    let hold = 0;
+    let close = 0;
 
     projects.forEach((project) => {
-      const status = getStatus(project.Status);
+      const focal = project["Focal-1"] || project.Focal || "Unassigned";
 
-      if (
-        Object.prototype.hasOwnProperty.call(
-          counts,
-          status
-        )
-      ) {
-        counts[status]++;
+      focalMap[focal] = (focalMap[focal] || 0) + 1;
+
+      const statusKey = getStatusKey(project.Status);
+
+      if (statusKey === "done") {
+        done++;
+      } else if (statusKey === "hold") {
+        hold++;
+      } else if (statusKey === "close") {
+        close++;
+      } else {
+        ongoing++;
       }
-
-      const focal =
-        String(project["Focal-1"] ?? "").trim() ||
-        "Not Assigned";
-
-      focalMap.set(
-        focal,
-        (focalMap.get(focal) || 0) + 1
-      );
     });
-
-    const focalSummary = Array.from(
-      focalMap.entries()
-    )
-      .map(([name, count]) => ({
-        name,
-        count,
-      }))
-      .sort((a, b) => {
-        if (b.count !== a.count) {
-          return b.count - a.count;
-        }
-
-        return a.name.localeCompare(b.name);
-      });
 
     return {
       total: projects.length,
-      focalCount: focalSummary.length,
-      focalSummary,
-      ...counts,
+      done,
+      ongoing,
+      hold,
+      close,
+      focalMap,
     };
   }, [projects]);
 
   /* =======================================================
-     FILTER + SEARCH + SORT
+     FILTER / SEARCH / SORT
   ======================================================= */
 
   const filteredProjects = useMemo(() => {
-    const query = deferredSearch.trim().toLowerCase();
+    const query = normalize(deferredSearch);
 
-    let result = projects;
+    let result = [...projects];
 
-    /* FOCAL FILTER */
-
+    /* Focal */
     if (selectedFocal !== "All") {
-      const focalQuery = normalize(selectedFocal);
+      result = result.filter((project) => {
+        const focal = project["Focal-1"] || project.Focal || "Unassigned";
 
-      result = result.filter(
-        (project) =>
-          normalize(
-            project["Focal-1"] || "Not Assigned"
-          ) === focalQuery
-      );
+        return focal === selectedFocal;
+      });
     }
 
-    /* STATUS FILTER */
-
+    /* Status */
     if (statusFilter !== "All") {
-      const statusQuery =
-        getStatusKey(statusFilter);
-
       result = result.filter(
-        (project) =>
-          getStatusKey(project.Status) ===
-          statusQuery
+        (project) => getStatusKey(project.Status) === statusFilter,
       );
     }
 
-    /* SEARCH */
-
+    /* Search */
     if (query) {
       result = result.filter((project) =>
         Object.values(project).some((value) =>
-          String(value ?? "")
-            .toLowerCase()
-            .includes(query)
-        )
+          normalize(value).includes(query),
+        ),
       );
     }
 
-    /* SORT */
+    /* Sort */
+    result.sort((a, b) => {
+      const { key, direction } = sortConfig;
 
-    const sorted = [...result];
-
-    sorted.sort((a, b) => {
-      const key = sortConfig.key;
-
-      if (
-        key === "Start Date" ||
-        key === "End Date"
-      ) {
-        const dateA =
-          parseDate(a[key])?.getTime() || 0;
-
-        const dateB =
-          parseDate(b[key])?.getTime() || 0;
-
-        return sortConfig.direction === "asc"
-          ? dateA - dateB
-          : dateB - dateA;
+      if (key === "__sheetOrder") {
+        return direction === "desc"
+          ? b.__sheetOrder - a.__sheetOrder
+          : a.__sheetOrder - b.__sheetOrder;
       }
 
-      const valueA = String(a[key] ?? "");
-      const valueB = String(b[key] ?? "");
+      const aValue = normalize(a[key]);
 
-      return sortConfig.direction === "asc"
-        ? valueA.localeCompare(valueB, undefined, {
-            numeric: true,
-            sensitivity: "base",
-          })
-        : valueB.localeCompare(valueA, undefined, {
-            numeric: true,
-            sensitivity: "base",
-          });
+      const bValue = normalize(b[key]);
+
+      if (aValue < bValue) {
+        return direction === "asc" ? -1 : 1;
+      }
+
+      if (aValue > bValue) {
+        return direction === "asc" ? 1 : -1;
+      }
+
+      return 0;
     });
 
-    return sorted;
-  }, [
-    projects,
-    selectedFocal,
-    statusFilter,
-    deferredSearch,
-    sortConfig,
-  ]);
+    return result;
+  }, [projects, selectedFocal, statusFilter, deferredSearch, sortConfig]);
 
   /* =======================================================
      SORT
   ======================================================= */
 
   const handleSort = (key) => {
-    setSortConfig((current) => ({
-      key,
-      direction:
-        current.key === key &&
-        current.direction === "asc"
-          ? "desc"
-          : "asc",
-    }));
+    setSortConfig((previous) => {
+      if (previous.key === key) {
+        return {
+          key,
+          direction: previous.direction === "asc" ? "desc" : "asc",
+        };
+      }
+
+      return {
+        key,
+        direction: "asc",
+      };
+    });
   };
 
   /* =======================================================
-     FILTER HANDLERS
+     FILTERS
   ======================================================= */
 
-  const handleStatusCardClick = (status) => {
+  const handleStatusFilter = (status) => {
     setStatusFilter(status);
-
-    setSelectedFocal("All");
   };
 
   const handleTotalClick = () => {
     setSelectedFocal("All");
     setStatusFilter("All");
-  };
+    setSearch("");
 
-  const handleFocalClick = (focal) => {
-    setSelectedFocal(focal);
+    setSortConfig({
+      key: "__sheetOrder",
+      direction: "desc",
+    });
   };
 
   const clearFilters = () => {
     setSelectedFocal("All");
     setStatusFilter("All");
     setSearch("");
+
+    setSortConfig({
+      key: "__sheetOrder",
+      direction: "desc",
+    });
+  };
+
+  /* =======================================================
+     EXPORT ALL — EXCEL
+  ======================================================= */
+
+  const handleExportAllExcel = () => {
+    if (!filteredProjects.length) {
+      return;
+    }
+
+    /*
+     * ONLY the 11 selected columns are exported.
+     */
+    const rows = filteredProjects.map(getExportObject);
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+
+    /*
+     * Excel column widths
+     */
+    worksheet["!cols"] = EXPORT_COLUMNS.map((column) => {
+      let width = column.length + 3;
+
+      rows.forEach((row) => {
+        const value = String(row[column] ?? "");
+
+        width = Math.max(width, Math.min(value.length + 2, 45));
+      });
+
+      /*
+       * Activity and Title need more space.
+       */
+      if (column === "Title") {
+        width = Math.max(width, 35);
+      }
+
+      if (column === "Activity") {
+        width = Math.max(width, 45);
+      }
+
+      return {
+        wch: Math.min(width, 50),
+      };
+    });
+
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "IS Project & Drive");
+
+    const filterName =
+      selectedFocal === "All" ? "All" : sanitizeFileName(selectedFocal);
+
+    XLSX.writeFile(
+      workbook,
+      `Microfinance-Technology-IS-Project-Drive-${filterName}.xlsx`,
+    );
+  };
+
+  /* =======================================================
+     EXPORT ALL — PDF
+  ======================================================= */
+
+  const handleExportAllPDF = () => {
+    if (!filteredProjects.length) {
+      return;
+    }
+
+    const doc = new jsPDF({
+      orientation: "landscape",
+      unit: "mm",
+      format: "a4",
+      compress: true,
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    const generatedDate = new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+
+    /* =====================================================
+       FIRST PAGE REPORT HEADER
+    ===================================================== */
+
+    doc.setFont("helvetica", "bold");
+
+    doc.setFontSize(17);
+
+    doc.text("Microfinance Technology", 14, 14);
+
+    doc.setFontSize(13);
+
+    doc.text("IS Project & Drive Report", 14, 22);
+
+    doc.setFont("helvetica", "normal");
+
+    doc.setFontSize(9);
+
+    doc.text(`Generated: ${generatedDate}`, 14, 29);
+
+    doc.text(`Total Records: ${filteredProjects.length}`, 14, 35);
+
+    doc.text(
+      `Filter: ${selectedFocal === "All" ? "All Records" : selectedFocal}`,
+      14,
+      41,
+    );
+
+    if (statusFilter !== "All") {
+      doc.text(`Status: ${getStatus(statusFilter)}`, 14, 47);
+    }
+
+    /*
+     * ONLY 11 COLUMNS
+     */
+    const tableHead = [EXPORT_COLUMNS];
+
+    /*
+     * ONLY 11 COLUMNS
+     */
+    const tableBody = filteredProjects.map((project) =>
+      EXPORT_COLUMNS.map((column) =>
+        formatExportValue(column, project[column]),
+      ),
+    );
+
+    const totalColumns = EXPORT_COLUMNS.length;
+
+    /*
+     * Because there are 11 columns,
+     * use a small font and landscape A4.
+     */
+    autoTable(doc, {
+      startY: statusFilter === "All" ? 50 : 56,
+
+      /*
+       * IMPORTANT:
+       * Small margin means page 2 starts
+       * very close to the top.
+       */
+      margin: {
+        top: 8,
+        right: 7,
+        bottom: 12,
+        left: 7,
+      },
+
+      head: tableHead,
+
+      body: tableBody,
+
+      theme: "grid",
+
+      tableWidth: "auto",
+
+      styles: {
+        font: "helvetica",
+
+        fontSize: 6.3,
+
+        cellPadding: 1.7,
+
+        overflow: "linebreak",
+
+        valign: "top",
+
+        lineColor: [210, 210, 210],
+
+        lineWidth: 0.1,
+      },
+
+      headStyles: {
+        fontStyle: "bold",
+
+        fontSize: 6.5,
+
+        halign: "center",
+
+        valign: "middle",
+
+        cellPadding: 2,
+
+        fillColor: [190, 24, 93],
+
+        textColor: [255, 255, 255],
+
+        lineColor: [150, 20, 75],
+
+        lineWidth: 0.2,
+      },
+
+      bodyStyles: {
+        textColor: [40, 40, 40],
+      },
+
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+
+      /*
+       * Explicit widths.
+       *
+       * Total is approximately 283mm,
+       * suitable for landscape A4.
+       */
+      columnStyles: {
+        0: {
+          cellWidth: 12,
+          halign: "center",
+        },
+
+        1: {
+          cellWidth: 17,
+        },
+
+        2: {
+          cellWidth: 14,
+        },
+
+        3: {
+          cellWidth: 40,
+        },
+
+        4: {
+          cellWidth: 53,
+        },
+
+        5: {
+          cellWidth: 25,
+        },
+
+        6: {
+          cellWidth: 25,
+        },
+
+        7: {
+          cellWidth: 22,
+        },
+
+        8: {
+          cellWidth: 22,
+        },
+
+        9: {
+          cellWidth: 20,
+        },
+
+        10: {
+          cellWidth: 23,
+        },
+      },
+
+      /*
+       * Header repeats automatically on every page.
+       */
+      showHead: "everyPage",
+
+      pageBreak: "auto",
+
+      rowPageBreak: "auto",
+
+      /*
+       * IMPORTANT FIX:
+       *
+       * The large first-page report header is
+       * NOT repeated on page 2, 3, 4...
+       *
+       * Only a very small header is shown.
+       */
+      didDrawPage: () => {
+        const pageNumber = doc.internal.getNumberOfPages();
+
+        if (pageNumber > 1) {
+          doc.setFont("helvetica", "bold");
+
+          doc.setFontSize(7.5);
+
+          doc.text("Microfinance Technology — IS Project & Drive", 7, 5);
+
+          doc.setFont("helvetica", "normal");
+
+          doc.setFontSize(7);
+
+          doc.text(`Page ${pageNumber}`, pageWidth - 7, 5, {
+            align: "right",
+          });
+        }
+
+        /*
+         * Footer
+         */
+        doc.setFont("helvetica", "normal");
+
+        doc.setFontSize(6.5);
+
+        doc.text(
+          "Microfinance Technology - IS Project & Drive",
+          7,
+          pageHeight - 5,
+        );
+
+        doc.text(`Page ${pageNumber}`, pageWidth - 7, pageHeight - 5, {
+          align: "right",
+        });
+      },
+    });
+
+    const filterName =
+      selectedFocal === "All" ? "All-Records" : sanitizeFileName(selectedFocal);
+
+    doc.save(`Microfinance-Technology-IS-Project-Drive-${filterName}.pdf`);
+  };
+
+  /* =======================================================
+     SELECTED PROJECT — EXCEL
+  ======================================================= */
+
+  const handleExportProjectExcel = () => {
+    if (!selectedProject) {
+      return;
+    }
+
+    /*
+     * ONLY the selected 11 fields.
+     */
+    const rows = getProjectDetailExportRows(selectedProject);
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+
+    worksheet["!cols"] = [
+      {
+        wch: 25,
+      },
+      {
+        wch: 90,
+      },
+    ];
+
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Project Details");
+
+    const title = selectedProject.Title || "IS Project";
+
+    XLSX.writeFile(workbook, `${sanitizeFileName(title)} - Details.xlsx`);
+  };
+
+  /* =======================================================
+     SELECTED PROJECT — PDF
+  ======================================================= */
+
+  const handleExportProjectPDF = () => {
+    if (!selectedProject) {
+      return;
+    }
+
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+      compress: true,
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    const title = selectedProject.Title || "IS Project Details";
+
+    const rows = getProjectDetailExportRows(selectedProject);
+
+    /* HEADER */
+
+    doc.setFont("helvetica", "bold");
+
+    doc.setFontSize(16);
+
+    doc.text("Microfinance Technology", 14, 15);
+
+    doc.setFontSize(12);
+
+    doc.text("IS Project & Drive — Project Details", 14, 23);
+
+    doc.setFont("helvetica", "normal");
+
+    doc.setFontSize(9);
+
+    doc.text(`Generated: ${getCurrentDateTime()}`, 14, 30);
+
+    doc.setFont("helvetica", "bold");
+
+    doc.setFontSize(10);
+
+    const titleLines = doc.splitTextToSize(title, pageWidth - 28);
+
+    doc.text(titleLines, 14, 38);
+
+    const tableStartY = 42 + titleLines.length * 5;
+
+    /*
+     * ONLY the 11 selected fields.
+     */
+    autoTable(doc, {
+      startY: tableStartY,
+
+      margin: {
+        top: 8,
+        right: 14,
+        bottom: 14,
+        left: 14,
+      },
+
+      head: [["Field", "Details"]],
+
+      body: rows.map((row) => [row.Field, row.Details]),
+
+      theme: "grid",
+
+      styles: {
+        font: "helvetica",
+
+        fontSize: 8.5,
+
+        cellPadding: 3,
+
+        overflow: "linebreak",
+
+        valign: "top",
+
+        lineColor: [215, 215, 215],
+
+        lineWidth: 0.1,
+      },
+
+      headStyles: {
+        fillColor: [190, 24, 93],
+
+        textColor: [255, 255, 255],
+
+        fontStyle: "bold",
+
+        halign: "left",
+      },
+
+      columnStyles: {
+        0: {
+          cellWidth: 45,
+
+          fontStyle: "bold",
+        },
+
+        1: {
+          cellWidth: 130,
+        },
+      },
+
+      showHead: "everyPage",
+
+      pageBreak: "auto",
+
+      didDrawPage: () => {
+        const pageNumber = doc.internal.getNumberOfPages();
+
+        doc.setFont("helvetica", "normal");
+
+        doc.setFontSize(7);
+
+        doc.text(
+          "Microfinance Technology - IS Project & Drive",
+          14,
+          pageHeight - 6,
+        );
+
+        doc.text(`Page ${pageNumber}`, pageWidth - 14, pageHeight - 6, {
+          align: "right",
+        });
+      },
+    });
+
+    doc.save(`${sanitizeFileName(title)} - Details.pdf`);
   };
 
   /* =======================================================
@@ -529,18 +1065,15 @@ const ISProjectDrive = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-        <div className="mx-auto flex min-h-[400px] max-w-[1600px] items-center justify-center">
-          <div className="text-center">
-            <RefreshCw
-              size={32}
-              className="mx-auto animate-spin text-pink-600"
-            />
-
-            <p className="mt-3 text-sm text-gray-500">
-              Loading IS Project & Drive data...
-            </p>
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="flex h-12 w-12 animate-spin items-center justify-center rounded-full border-4 border-pink-100 border-t-pink-600">
+            <RefreshCw size={22} className="text-pink-600" />
           </div>
+
+          <p className="text-sm font-medium text-slate-500">
+            Loading IS Project & Drive...
+          </p>
         </div>
       </div>
     );
@@ -552,30 +1085,27 @@ const ISProjectDrive = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-6">
-        <div className="mx-auto max-w-[1600px]">
-          <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center">
-            <XCircle
-              size={36}
-              className="mx-auto text-red-500"
-            />
+      <div className="mx-auto max-w-3xl px-4 py-10">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-6">
+          <div className="flex items-start gap-3">
+            <XCircle size={24} className="mt-0.5 text-red-600" />
 
-            <h2 className="mt-3 font-semibold text-red-700">
-              Unable to load projects
-            </h2>
+            <div>
+              <h2 className="font-bold text-red-800">
+                Unable to load IS Project & Drive
+              </h2>
 
-            <p className="mt-1 text-sm text-red-600">
-              {error}
-            </p>
+              <p className="mt-1 text-sm text-red-700">{error}</p>
 
-            <button
-              type="button"
-              onClick={() => loadProjects(true)}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white hover:bg-pink-700"
-            >
-              <RefreshCw size={16} />
-              Try Again
-            </button>
+              <button
+                type="button"
+                onClick={() => loadProjects(true)}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+              >
+                <RefreshCw size={16} />
+                Try Again
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -587,356 +1117,345 @@ const ISProjectDrive = () => {
   ======================================================= */
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-pink-50/30 p-3 sm:p-4 lg:p-6">
-      <div className="mx-auto w-full max-w-[1600px]">
-
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-[1700px] px-4 py-5 sm:px-6 lg:px-8">
         {/* =================================================
-            HEADER
+            PAGE HEADER
         ================================================= */}
 
-        <div className="mb-6 rounded-2xl bg-gradient-to-r from-pink-600 to-pink-500 p-5 text-white shadow-md sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
+        <div className="mb-6 rounded-3xl bg-gradient-to-r from-white via-rose-50 to-pink-400 p-6 text-slate-800 shadow-lg">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15">
-                  <FolderKanban size={24} />
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-pink-100 text-pink-700">
+                  <FolderKanban size={25} />
                 </div>
 
-                <div className="min-w-0">
-                  <h1 className="text-xl font-bold sm:text-2xl">
+                <div>
+                  <h1 className="text-2xl font-bold sm:text-3xl">
                     IS Project & Drive
                   </h1>
 
-                  <p className="mt-1 text-sm text-pink-100">
+                  <p className="mt-1 text-sm text-pink-700">
                     Information System Projects, Activities & Drive
                   </p>
                 </div>
               </div>
+
+              
             </div>
 
             <button
               type="button"
               onClick={() => loadProjects(true)}
               disabled={refreshing}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-white px-4 py-2.5 text-sm font-semibold text-pink-600 shadow-sm transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-70"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-pink-700 shadow-sm transition hover:bg-pink-50 disabled:cursor-not-allowed disabled:opacity-70"
             >
               <RefreshCw
-                size={16}
-                className={
-                  refreshing
-                    ? "animate-spin"
-                    : ""
-                }
+                size={17}
+                className={refreshing ? "animate-spin" : ""}
               />
 
-              {refreshing
-                ? "Refreshing..."
-                : "Refresh"}
+              {refreshing ? "Refreshing..." : "Refresh Data"}
             </button>
           </div>
         </div>
 
         {/* =================================================
-            SUMMARY CARDS
+            SUMMARY
         ================================================= */}
 
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <SummaryMetric
-            label="Total Tasks"
+            icon={FolderKanban}
+            label="Total Projects"
             value={summary.total}
-            icon={ListChecks}
-            iconColor="bg-pink-100 text-pink-600"
+            colorClass="bg-pink-50 text-pink-600"
             active={
-              statusFilter === "All" &&
-              selectedFocal === "All"
+              selectedFocal === "All" && statusFilter === "All" && !search
             }
             onClick={handleTotalClick}
           />
 
           <SummaryMetric
-            label="Focal-1"
-            value={summary.focalCount}
             icon={Users}
-            iconColor="bg-purple-100 text-purple-600"
-            active={selectedFocal !== "All"}
+            label="Focal Areas"
+            value={Object.keys(summary.focalMap).length}
+            colorClass="bg-violet-50 text-violet-600"
           />
 
           <SummaryMetric
-            label="Done"
-            value={summary.Done}
             icon={CheckCircle2}
-            iconColor="bg-emerald-100 text-emerald-600"
-            active={statusFilter === "Done"}
+            label="Done"
+            value={summary.done}
+            colorClass="bg-emerald-50 text-emerald-600"
+            active={statusFilter === "done"}
             onClick={() =>
-              handleStatusCardClick("Done")
+              handleStatusFilter(statusFilter === "done" ? "All" : "done")
             }
           />
 
           <SummaryMetric
-            label="Ongoing"
-            value={summary.Ongoing}
             icon={Clock3}
-            iconColor="bg-blue-100 text-blue-600"
-            active={statusFilter === "Ongoing"}
+            label="Ongoing"
+            value={summary.ongoing}
+            colorClass="bg-blue-50 text-blue-600"
+            active={statusFilter === "ongoing"}
             onClick={() =>
-              handleStatusCardClick("Ongoing")
+              handleStatusFilter(statusFilter === "ongoing" ? "All" : "ongoing")
             }
           />
 
           <SummaryMetric
-            label="On Hold"
-            value={summary["On Hold"]}
             icon={CirclePause}
-            iconColor="bg-amber-100 text-amber-600"
-            active={statusFilter === "On Hold"}
+            label="On Hold"
+            value={summary.hold}
+            colorClass="bg-amber-50 text-amber-600"
+            active={statusFilter === "hold"}
             onClick={() =>
-              handleStatusCardClick("On Hold")
+              handleStatusFilter(statusFilter === "hold" ? "All" : "hold")
             }
           />
 
           <SummaryMetric
-            label="Close"
-            value={summary.Close}
             icon={XCircle}
-            iconColor="bg-slate-100 text-slate-600"
-            active={statusFilter === "Close"}
+            label="Close"
+            value={summary.close}
+            colorClass="bg-red-50 text-red-600"
+            active={statusFilter === "close"}
             onClick={() =>
-              handleStatusCardClick("Close")
+              handleStatusFilter(statusFilter === "close" ? "All" : "close")
             }
           />
         </div>
 
         {/* =================================================
-            MAIN CONTENT
+            CONTENT
         ================================================= */}
 
-        <div className="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-[250px_minmax(0,1fr)]">
-
+        <div className="grid gap-5 xl:grid-cols-[250px_minmax(0,1fr)]">
           {/* =================================================
-              FOCAL-WISE DATA
+              FOCAL AREA
           ================================================= */}
 
-          <aside className="min-w-0 rounded-xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-gray-200 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold text-gray-800">
-                    Focal-1 Wise
-                  </h2>
+          <aside className="h-fit rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:sticky xl:top-5">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="font-bold text-slate-900">Focal Areas</h2>
 
-                  <p className="mt-1 text-xs text-gray-500">
-                    Click a focal to filter
-                  </p>
-                </div>
-
-                <Users
-                  size={20}
-                  className="shrink-0 text-pink-500"
-                />
+                <p className="mt-1 text-xs text-slate-400">
+                  Filter by focal person
+                </p>
               </div>
+
+              <Users size={18} className="text-pink-500" />
             </div>
 
-            <div className="p-2">
-
-              {/* ALL */}
-
+            <div className="space-y-1.5">
               <button
                 type="button"
-                onClick={() =>
-                  handleFocalClick("All")
-                }
-                className={`mb-1 flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm transition ${
+                onClick={() => setSelectedFocal("All")}
+                className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition ${
                   selectedFocal === "All"
                     ? "bg-pink-50 font-semibold text-pink-700"
-                    : "text-gray-700 hover:bg-gray-50"
+                    : "text-slate-600 hover:bg-slate-50"
                 }`}
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  <FolderKanban
-                    size={16}
-                    className="shrink-0"
-                  />
+                <span>All</span>
 
-                  <span className="truncate">
-                    All Focal-1
-                  </span>
-                </span>
-
-                <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
                   {summary.total}
                 </span>
               </button>
 
-              {/* FOCAL LIST */}
+              {Object.entries(summary.focalMap)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([focal, count]) => (
+                  <button
+                    key={focal}
+                    type="button"
+                    onClick={() => setSelectedFocal(focal)}
+                    className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                      selectedFocal === focal
+                        ? "bg-pink-50 font-semibold text-pink-700"
+                        : "text-slate-600 hover:bg-slate-50"
+                    }`}
+                  >
+                    <span className="truncate pr-2">{focal}</span>
 
-              <div className="max-h-[420px] overflow-y-auto pr-1">
-                {summary.focalSummary.length ===
-                0 ? (
-                  <div className="px-3 py-6 text-center text-xs text-gray-500">
-                    No focal data available
-                  </div>
-                ) : (
-                  summary.focalSummary.map(
-                    (focal) => (
-                      <button
-                        key={focal.name}
-                        type="button"
-                        onClick={() =>
-                          handleFocalClick(
-                            focal.name
-                          )
-                        }
-                        className={`mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-sm transition ${
-                          selectedFocal ===
-                          focal.name
-                            ? "bg-pink-50 font-semibold text-pink-700 ring-1 ring-pink-200"
-                            : "text-gray-700 hover:bg-gray-50"
-                        }`}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <UserRound
-                            size={15}
-                            className="shrink-0"
-                          />
-
-                          <span className="truncate">
-                            {focal.name}
-                          </span>
-                        </span>
-
-                        <span
-                          className={`ml-2 shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            selectedFocal ===
-                            focal.name
-                              ? "bg-pink-100 text-pink-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {focal.count}
-                        </span>
-                      </button>
-                    )
-                  )
-                )}
-              </div>
+                    <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+                      {count}
+                    </span>
+                  </button>
+                ))}
             </div>
           </aside>
 
           {/* =================================================
-              PROJECT TABLE
+              TABLE
           ================================================= */}
 
-          <section className="min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white shadow-sm">
             {/* TABLE HEADER */}
 
-            <div className="border-b border-gray-200 p-4">
+            <div className="border-b border-slate-200 p-4">
               <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">
+                    All IS Projects & Drive
+                  </h2>
 
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-semibold text-gray-800">
-                      All IS Projects & Drive
-                    </h2>
-
-                    <span className="rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-600">
-                      {filteredProjects.length}{" "}
-                      records
-                    </span>
-                  </div>
-
-                  {(selectedFocal !== "All" ||
-                    statusFilter !== "All") && (
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      {selectedFocal !==
-                        "All" && (
-                        <span className="rounded-full bg-pink-50 px-2.5 py-1 font-medium text-pink-700">
-                          Focal:{" "}
-                          {selectedFocal}
-                        </span>
-                      )}
-
-                      {statusFilter !==
-                        "All" && (
-                        <span className="rounded-full bg-blue-50 px-2.5 py-1 font-medium text-blue-700">
-                          Status:{" "}
-                          {statusFilter}
-                        </span>
-                      )}
-                    </div>
-                  )}
+                  <p className="mt-1 text-xs text-slate-400">
+                    Showing{" "}
+                    <span className="font-semibold text-slate-600">
+                      {filteredProjects.length}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-semibold text-slate-600">
+                      {projects.length}
+                    </span>{" "}
+                    records
+                  </p>
                 </div>
 
-                {/* SEARCH */}
+                <div className="flex w-full flex-col gap-2 sm:flex-row xl:w-auto">
+                  {/* EXCEL */}
 
-                <div className="relative w-full xl:max-w-xs">
-                  <Search
-                    size={17}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  />
+                  <button
+                    type="button"
+                    onClick={handleExportAllExcel}
+                    disabled={!filteredProjects.length}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <FileSpreadsheet size={17} />
+                    Excel
+                  </button>
 
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(event) =>
-                      setSearch(
-                        event.target.value
-                      )
-                    }
-                    placeholder="Search projects..."
-                    className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2.5 pl-9 pr-9 text-sm outline-none transition focus:border-pink-400 focus:bg-white focus:ring-2 focus:ring-pink-100"
-                  />
+                  {/* PDF */}
 
-                  {search && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSearch("")
-                      }
-                      className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                      aria-label="Clear search"
-                    >
-                      <X size={15} />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleExportAllPDF}
+                    disabled={!filteredProjects.length}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <FileDown size={17} />
+                    PDF
+                  </button>
+
+                  {/* SEARCH */}
+
+                  <div className="relative w-full sm:min-w-[260px] xl:w-[300px]">
+                    <Search
+                      size={17}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                    />
+
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search projects..."
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-10 text-sm outline-none transition focus:border-pink-400 focus:bg-white focus:ring-2 focus:ring-pink-100"
+                    />
+
+                    {search && (
+                      <button
+                        type="button"
+                        onClick={() => setSearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                      >
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
-              {/* STATUS FILTERS */}
+              {/* FILTERS */}
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                {[
-                  "All",
-                  "Done",
-                  "Ongoing",
-                  "On Hold",
-                  "Close",
-                ].map((status) => (
-                  <button
-                    key={status}
-                    type="button"
-                    onClick={() =>
-                      setStatusFilter(status)
-                    }
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                      statusFilter === status
-                        ? "border-pink-500 bg-pink-600 text-white"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-pink-200 hover:bg-pink-50 hover:text-pink-700"
-                    }`}
-                  >
-                    {status}
-                  </button>
-                ))}
+                <span className="text-xs font-semibold text-slate-400">
+                  Filters:
+                </span>
 
-                {(selectedFocal !==
-                  "All" ||
-                  statusFilter !==
-                    "All" ||
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("All")}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    statusFilter === "All"
+                      ? "bg-slate-900 text-white"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  All Status
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStatusFilter(
+                      statusFilter === "ongoing" ? "All" : "ongoing",
+                    )
+                  }
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    statusFilter === "ongoing"
+                      ? "bg-blue-600 text-white"
+                      : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  }`}
+                >
+                  Ongoing
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStatusFilter(statusFilter === "done" ? "All" : "done")
+                  }
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    statusFilter === "done"
+                      ? "bg-emerald-600 text-white"
+                      : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                  }`}
+                >
+                  Done
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStatusFilter(statusFilter === "hold" ? "All" : "hold")
+                  }
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    statusFilter === "hold"
+                      ? "bg-amber-500 text-white"
+                      : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                  }`}
+                >
+                  On Hold
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setStatusFilter(statusFilter === "close" ? "All" : "close")
+                  }
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                    statusFilter === "close"
+                      ? "bg-red-600 text-white"
+                      : "bg-red-50 text-red-700 hover:bg-red-100"
+                  }`}
+                >
+                  Close
+                </button>
+
+                {(selectedFocal !== "All" ||
+                  statusFilter !== "All" ||
                   search) && (
                   <button
                     type="button"
                     onClick={clearFilters}
-                    className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-500 hover:bg-gray-50"
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-pink-600 hover:bg-pink-50"
                   >
                     <X size={13} />
                     Clear Filters
@@ -949,534 +1468,393 @@ const ISProjectDrive = () => {
                 DESKTOP TABLE
             ================================================= */}
 
-            <div className="hidden md:block">
-              <div className="overflow-x-auto">
-                <table className="w-full table-fixed">
-                  <colgroup>
-                    <col className="w-[29%]" />
-                    <col className="w-[17%]" />
-                    <col className="w-[12%]" />
-                    <col className="w-[12%]" />
-                    <col className="w-[13%]" />
-                    <col className="w-[17%]" />
-                  </colgroup>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[900px] border-collapse">
+                <colgroup>
+                  <col className="w-[29%]" />
+                  <col className="w-[17%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[12%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[17%]" />
+                </colgroup>
 
-                  <thead className="border-b border-gray-200 bg-gray-50">
-                    <tr>
-                      {[
-                        "Title",
-                        "Focal-1",
-                        "Start Date",
-                        "End Date",
-                        "Status",
-                      ].map((heading) => (
-                        <th
-                          key={heading}
-                          className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 lg:px-4"
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 text-left">
+                    <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Title
+                    </th>
+
+                    <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Focal-1
+                    </th>
+
+                    <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      <button
+                        type="button"
+                        onClick={() => handleSort("Start Date")}
+                        className="inline-flex items-center gap-1 hover:text-pink-600"
+                      >
+                        Start Date
+                        <ArrowUpDown size={12} />
+                      </button>
+                    </th>
+
+                    <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      <button
+                        type="button"
+                        onClick={() => handleSort("End Date")}
+                        className="inline-flex items-center gap-1 hover:text-pink-600"
+                      >
+                        End Date
+                        <ArrowUpDown size={12} />
+                      </button>
+                    </th>
+
+                    <th className="px-4 py-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Status
+                    </th>
+
+                    <th className="px-4 py-3 text-right text-xs font-bold uppercase tracking-wide text-slate-500">
+                      Action
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredProjects.map((project, index) => (
+                    <tr
+                      key={
+                        project.SN || project.ID || `${project.Title}-${index}`
+                      }
+                      className="border-b border-slate-100 transition hover:bg-pink-50/30"
+                    >
+                      <td className="px-4 py-4">
+                        <div className="max-w-[420px]">
+                          <div className="font-semibold text-slate-800">
+                            {project.Title || "-"}
+                          </div>
+
+                          {project.Type && (
+                            <div className="mt-1 text-xs text-slate-400">
+                              {project.Type}
+                            </div>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <span className="text-sm font-medium text-slate-700">
+                          {project["Focal-1"] || project.Focal || "-"}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-4 text-sm text-slate-600">
+                        {formatDate(project["Start Date"])}
+                      </td>
+
+                      <td className="px-4 py-4 text-sm text-slate-600">
+                        {formatDate(project["End Date"])}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <StatusBadge status={project.Status} />
+                      </td>
+
+                      <td className="px-4 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProject(project)}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-pink-50 px-3 py-2 text-xs font-bold text-pink-700 transition hover:bg-pink-100"
                         >
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleSort(
-                                heading
-                              )
-                            }
-                            className="inline-flex max-w-full items-center gap-1.5 hover:text-pink-600"
-                          >
-                            <span className="truncate">
-                              {heading}
-                            </span>
-
-                            <ArrowUpDown
-                              size={13}
-                              className="shrink-0"
-                            />
-                          </button>
-                        </th>
-                      ))}
-
-                      <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 lg:px-4">
-                        Action
-                      </th>
+                          <Eye size={15} />
+                          View Details
+                        </button>
+                      </td>
                     </tr>
-                  </thead>
-
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredProjects.length ===
-                    0 ? (
-                      <tr>
-                        <td
-                          colSpan={6}
-                          className="px-4 py-12 text-center"
-                        >
-                          <Search
-                            size={32}
-                            className="mx-auto text-gray-300"
-                          />
-
-                          <p className="mt-3 text-sm font-medium text-gray-600">
-                            No projects found
-                          </p>
-
-                          <p className="mt-1 text-xs text-gray-400">
-                            Try changing your
-                            search or filters.
-                          </p>
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredProjects.map(
-                        (
-                          project,
-                          index
-                        ) => (
-                          <tr
-                            key={
-                              project.SN ??
-                              project.Title ??
-                              index
-                            }
-                            className="transition hover:bg-pink-50/40"
-                          >
-                            {/* TITLE */}
-
-                            <td className="max-w-0 px-3 py-3 lg:px-4">
-                              <div className="flex min-w-0 items-center gap-2">
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pink-50 text-pink-600">
-                                  <BriefcaseBusiness
-                                    size={15}
-                                  />
-                                </div>
-
-                                <span
-                                  className="block truncate text-sm font-semibold text-gray-800"
-                                  title={
-                                    project.Title
-                                  }
-                                >
-                                  {project.Title ||
-                                    "-"}
-                                </span>
-                              </div>
-                            </td>
-
-                            {/* FOCAL */}
-
-                            <td className="max-w-0 px-3 py-3 lg:px-4">
-                              <span
-                                className="block truncate text-sm text-gray-600"
-                                title={
-                                  project[
-                                    "Focal-1"
-                                  ] ||
-                                  "Not Assigned"
-                                }
-                              >
-                                {project[
-                                  "Focal-1"
-                                ] ||
-                                  "Not Assigned"}
-                              </span>
-                            </td>
-
-                            {/* START */}
-
-                            <td className="px-3 py-3 lg:px-4">
-                              <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                                <CalendarDays
-                                  size={14}
-                                  className="shrink-0 text-gray-400"
-                                />
-
-                                <span className="truncate">
-                                  {formatDate(
-                                    project[
-                                      "Start Date"
-                                    ]
-                                  )}
-                                </span>
-                              </div>
-                            </td>
-
-                            {/* END */}
-
-                            <td className="px-3 py-3 lg:px-4">
-                              <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                                <CalendarDays
-                                  size={14}
-                                  className="shrink-0 text-gray-400"
-                                />
-
-                                <span className="truncate">
-                                  {formatDate(
-                                    project[
-                                      "End Date"
-                                    ]
-                                  )}
-                                </span>
-                              </div>
-                            </td>
-
-                            {/* STATUS */}
-
-                            <td className="px-3 py-3 lg:px-4">
-                              <StatusBadge
-                                status={
-                                  project.Status
-                                }
-                              />
-                            </td>
-
-                            {/* ACTION */}
-
-                            <td className="px-3 py-3 lg:px-4">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setSelectedProject(
-                                    project
-                                  )
-                                }
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-pink-200 bg-pink-50 px-3 py-2 text-xs font-semibold text-pink-700 transition hover:bg-pink-600 hover:text-white"
-                              >
-                                <Eye size={14} />
-                                View Details
-                              </button>
-                            </td>
-                          </tr>
-                        )
-                      )
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
             {/* =================================================
-                MOBILE PROJECT CARDS
+                MOBILE
             ================================================= */}
 
-            <div className="divide-y divide-gray-100 md:hidden">
-              {filteredProjects.length ===
-              0 ? (
-                <div className="px-4 py-12 text-center">
-                  <Search
-                    size={32}
-                    className="mx-auto text-gray-300"
-                  />
+            <div className="space-y-3 p-3 md:hidden">
+              {filteredProjects.map((project, index) => (
+                <div
+                  key={project.SN || project.ID || `${project.Title}-${index}`}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="font-bold text-slate-800">
+                        {project.Title || "-"}
+                      </h3>
 
-                  <p className="mt-3 text-sm font-medium text-gray-600">
-                    No projects found
-                  </p>
-                </div>
-              ) : (
-                filteredProjects.map(
-                  (project, index) => (
-                    <div
-                      key={
-                        project.SN ??
-                        project.Title ??
-                        index
-                      }
-                      className="p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex min-w-0 items-start gap-2.5">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-pink-50 text-pink-600">
-                            <BriefcaseBusiness
-                              size={16}
-                            />
-                          </div>
-
-                          <div className="min-w-0">
-                            <h3 className="break-words text-sm font-semibold text-gray-800">
-                              {project.Title ||
-                                "-"}
-                            </h3>
-
-                            <p className="mt-1 text-xs text-gray-500">
-                              {project[
-                                "Focal-1"
-                              ] ||
-                                "Not Assigned"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <StatusBadge
-                          status={
-                            project.Status
-                          }
-                        />
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-gray-50 p-3">
-                        <div>
-                          <p className="text-[11px] font-medium uppercase text-gray-400">
-                            Start Date
-                          </p>
-
-                          <p className="mt-1 text-xs font-medium text-gray-700">
-                            {formatDate(
-                              project[
-                                "Start Date"
-                              ]
-                            )}
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="text-[11px] font-medium uppercase text-gray-400">
-                            End Date
-                          </p>
-
-                          <p className="mt-1 text-xs font-medium text-gray-700">
-                            {formatDate(
-                              project[
-                                "End Date"
-                              ]
-                            )}
-                          </p>
-                        </div>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedProject(
-                            project
-                          )
-                        }
-                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-3 py-2.5 text-xs font-semibold text-pink-700 hover:bg-pink-600 hover:text-white"
-                      >
-                        <Eye size={15} />
-                        View Details
-                      </button>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {project["Focal-1"] || project.Focal || "-"}
+                      </p>
                     </div>
-                  )
-                )
-              )}
+
+                    <StatusBadge status={project.Status} />
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        Start Date
+                      </div>
+
+                      <div className="mt-1 text-xs font-semibold text-slate-700">
+                        {formatDate(project["Start Date"])}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl bg-slate-50 p-3">
+                      <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                        End Date
+                      </div>
+
+                      <div className="mt-1 text-xs font-semibold text-slate-700">
+                        {formatDate(project["End Date"])}
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProject(project)}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-pink-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-pink-700"
+                  >
+                    <Eye size={16} />
+                    View Details
+                  </button>
+                </div>
+              ))}
             </div>
 
-            {/* FOOTER */}
+            {/* NO DATA */}
 
-            <div className="border-t border-gray-100 bg-gray-50 px-4 py-3">
-              <p className="text-xs text-gray-500">
-                Showing{" "}
-                <span className="font-semibold text-gray-700">
-                  {filteredProjects.length}
-                </span>{" "}
-                of{" "}
-                <span className="font-semibold text-gray-700">
-                  {projects.length}
-                </span>{" "}
-                projects
-              </p>
-            </div>
+            {!filteredProjects.length && (
+              <div className="px-6 py-16 text-center">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+                  <Search size={24} />
+                </div>
+
+                <h3 className="mt-4 font-bold text-slate-800">
+                  No projects found
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Try changing your search or filter.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="mt-4 rounded-xl bg-pink-600 px-4 py-2 text-sm font-semibold text-white hover:bg-pink-700"
+                >
+                  Clear Filters
+                </button>
+              </div>
+            )}
           </section>
         </div>
       </div>
 
       {/* =====================================================
-          PROJECT DETAILS MODAL
+          DETAILS MODAL
       ===================================================== */}
 
       {selectedProject && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-3 sm:p-5"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-3 backdrop-blur-sm sm:p-5"
           onMouseDown={(event) => {
-            if (
-              event.target ===
-              event.currentTarget
-            ) {
+            if (event.target === event.currentTarget) {
               setSelectedProject(null);
             }
           }}
         >
-          <div className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
-
+          <div className="flex max-h-[94vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
             {/* MODAL HEADER */}
 
-            <div className="flex items-start justify-between gap-4 bg-gradient-to-r from-pink-600 to-pink-500 p-5 text-white">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/15">
-                  <FileText size={22} />
+            <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-gradient-to-r from-pink-700 to-rose-500 p-5 text-white">
+              <div className="min-w-0">
+                <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-pink-100">
+                  <FileText size={15} />
+                  IS Project Details
                 </div>
 
-                <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wide text-pink-100">
-                    IS Project Details
-                  </p>
+                <h2 className="break-words text-xl font-bold sm:text-2xl">
+                  {selectedProject.Title || "Project Details"}
+                </h2>
 
-                  <h2 className="mt-1 break-words text-lg font-bold sm:text-xl">
-                    {selectedProject.Title ||
-                      "Project Details"}
-                  </h2>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {selectedProject.Type && (
+                    <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs">
+                      {selectedProject.Type}
+                    </span>
+                  )}
+
+                  <span className="rounded-full bg-white/15 px-2.5 py-1 text-xs">
+                    {selectedProject.FY || "FY"}
+                  </span>
+
+                  <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-pink-700">
+                    {getStatus(selectedProject.Status)}
+                  </span>
                 </div>
               </div>
 
               <button
                 type="button"
-                onClick={() =>
-                  setSelectedProject(null)
-                }
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/10 hover:bg-white/20"
-                aria-label="Close project details"
+                onClick={() => setSelectedProject(null)}
+                className="shrink-0 rounded-xl bg-white/10 p-2 text-white transition hover:bg-white/20"
+                aria-label="Close"
               >
-                <X size={19} />
+                <X size={20} />
               </button>
             </div>
 
-            {/* MODAL CONTENT */}
+            {/* MODAL BODY */}
 
-            <div className="min-h-0 overflow-y-auto overscroll-contain">
-              <div className="divide-y divide-gray-100">
-
+            <div className="overflow-y-auto p-4 sm:p-6">
+              <div className="grid gap-3 md:grid-cols-2">
                 <ProjectDetailRow
+                  icon={ListChecks}
                   label="Serial Number"
                   value={selectedProject.SN}
-                  icon={ListChecks}
                 />
 
                 <ProjectDetailRow
+                  icon={BriefcaseBusiness}
                   label="Type"
                   value={selectedProject.Type}
-                  icon={FolderKanban}
-                  striped
                 />
 
                 <ProjectDetailRow
+                  icon={CalendarDays}
                   label="FY"
                   value={selectedProject.FY}
-                  icon={CalendarDays}
                 />
 
                 <ProjectDetailRow
+                  icon={FolderKanban}
                   label="Title"
                   value={selectedProject.Title}
-                  icon={BriefcaseBusiness}
-                  striped
+                  fullWidth
                 />
 
                 <ProjectDetailRow
+                  icon={FileText}
                   label="Activity"
                   value={selectedProject.Activity}
-                  icon={FileText}
-                  multiline
+                  fullWidth
                 />
 
                 <ProjectDetailRow
-                  label="Focal-1"
-                  value={
-                    selectedProject["Focal-1"]
-                  }
                   icon={UserRound}
-                  striped
+                  label="Focal-1"
+                  value={selectedProject["Focal-1"]}
                 />
 
                 <ProjectDetailRow
+                  icon={UserRound}
                   label="Focal-2"
-                  value={
-                    selectedProject["Focal-2"]
-                  }
-                  icon={Users}
+                  value={selectedProject["Focal-2"]}
                 />
 
                 <ProjectDetailRow
+                  icon={CalendarDays}
                   label="Start Date"
-                  value={formatDate(
-                    selectedProject[
-                      "Start Date"
-                    ]
-                  )}
-                  icon={CalendarDays}
-                  striped
+                  value={formatDate(selectedProject["Start Date"])}
                 />
 
                 <ProjectDetailRow
+                  icon={CalendarDays}
                   label="End Date"
-                  value={formatDate(
-                    selectedProject[
-                      "End Date"
-                    ]
-                  )}
-                  icon={CalendarDays}
+                  value={formatDate(selectedProject["End Date"])}
                 />
 
                 <ProjectDetailRow
-                  label="Duration"
-                  value={
-                    selectedProject.Duration
-                  }
                   icon={Clock3}
-                  striped
+                  label="Duration"
+                  value={selectedProject.Duration}
                 />
 
-                {/* STATUS */}
-
-                <div className="grid grid-cols-1 gap-1 bg-white px-4 py-3 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-gray-600">
-                    <CheckCircle2
-                      size={16}
-                      className="text-pink-500"
-                    />
-
-                    Status
-                  </div>
-
-                  <div>
-                    <StatusBadge
-                      status={
-                        selectedProject.Status
-                      }
-                    />
-                  </div>
-                </div>
+                <ProjectDetailRow
+                  icon={CheckCircle2}
+                  label="Status"
+                  value={<StatusBadge status={selectedProject.Status} />}
+                />
 
                 <ProjectDetailRow
-                  label="Stakeholder"
-                  value={
-                    selectedProject.Stakeholder
-                  }
                   icon={Building2}
-                  striped
-                  multiline
+                  label="Stakeholder"
+                  value={selectedProject.Stakeholder}
+                  fullWidth
                 />
 
                 <ProjectDetailRow
-                  label="Budget (If any)"
-                  value={
-                    selectedProject[
-                      "Budget (If any)"
-                    ]
-                  }
                   icon={Wallet}
+                  label="Budget (If any)"
+                  value={selectedProject["Budget (If any)"]}
                 />
 
                 <ProjectDetailRow
-                  label="Remarks"
-                  value={
-                    selectedProject.Remarks
-                  }
                   icon={MessageSquareText}
-                  striped
-                  multiline
+                  label="Remarks"
+                  value={selectedProject.Remarks}
+                  fullWidth
                 />
               </div>
             </div>
 
-            {/* MODAL FOOTER */}
+            {/* =================================================
+                MODAL FOOTER
+            ================================================= */}
 
-            <div className="flex items-center justify-end border-t border-gray-200 bg-gray-50 p-4">
-              <button
-                type="button"
-                onClick={() =>
-                  setSelectedProject(null)
-                }
-                className="rounded-lg bg-gray-800 px-5 py-2.5 text-sm font-semibold text-white hover:bg-gray-900"
-              >
-                Close
-              </button>
+            <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-slate-400">
+                Excel and PDF contain the selected 11 project fields.
+              </p>
+
+              <div className="flex flex-wrap gap-2">
+                {/* EXCEL */}
+
+                <button
+                  type="button"
+                  onClick={handleExportProjectExcel}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 transition hover:bg-emerald-100"
+                >
+                  <FileSpreadsheet size={17} />
+                  Excel
+                </button>
+
+                {/* PDF */}
+
+                <button
+                  type="button"
+                  onClick={handleExportProjectPDF}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 transition hover:bg-red-100"
+                >
+                  <FileDown size={17} />
+                  PDF
+                </button>
+
+                {/* CLOSE */}
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedProject(null)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-slate-800"
+                >
+                  <X size={17} />
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
