@@ -1,5 +1,6 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import {
   AlertCircle,
   CalendarDays,
@@ -14,7 +15,12 @@ import {
   Search,
   Target,
   User,
+  Users,
   X,
+  CirclePause,
+  RotateCcw,
+  ClipboardList,
+  Building2,
 } from "lucide-react";
 
 import { fetchIndividualTasks } from "../../services/api";
@@ -30,121 +36,21 @@ const normalize = (value) =>
     .toLowerCase();
 
 
+const displayValue = (value) =>
+  String(value ?? "").trim() || "—";
+
+
+const formatDate = (value) =>
+  String(value ?? "").trim() || "—";
+
+
 const getTaskKey = (task, index) =>
-  `${task["SN"] || "task"}-${index}`;
+  `${task.SN || task["Task Title"] || "task"}-${index}`;
 
 
-const formatDate = (value) => {
-  if (!value) return "—";
-
-  return String(value).trim();
-};
-
-
-const getStatusProgress = (status) => {
-  const value = normalize(status);
-
-  if (
-    value.includes("complete") ||
-    value.includes("done") ||
-    value.includes("closed")
-  ) {
-    return 100;
-  }
-
-  if (
-    value.includes("hold") ||
-    value.includes("pending")
-  ) {
-    return 50;
-  }
-
-  if (
-    value.includes("ongoing") ||
-    value.includes("progress") ||
-    value.includes("working")
-  ) {
-    return 65;
-  }
-
-  if (
-    value.includes("start")
-  ) {
-    return 0;
-  }
-
-  return 25;
-};
-
-
-const getStatusStyle = (status) => {
-  const value = normalize(status);
-
-  if (
-    value.includes("complete") ||
-    value.includes("done") ||
-    value.includes("closed")
-  ) {
-    return {
-      badge:
-        "bg-emerald-50 text-emerald-700 border-emerald-200",
-      dot: "bg-emerald-500",
-      bar: "bg-emerald-500",
-    };
-  }
-
-  if (
-    value.includes("hold") ||
-    value.includes("pending")
-  ) {
-    return {
-      badge:
-        "bg-amber-50 text-amber-700 border-amber-200",
-      dot: "bg-amber-500",
-      bar: "bg-amber-500",
-    };
-  }
-
-  if (
-    value.includes("ongoing") ||
-    value.includes("progress") ||
-    value.includes("working")
-  ) {
-    return {
-      badge:
-        "bg-blue-50 text-blue-700 border-blue-200",
-      dot: "bg-blue-500",
-      bar: "bg-blue-500",
-    };
-  }
-
-  return {
-    badge:
-      "bg-slate-50 text-slate-600 border-slate-200",
-    dot: "bg-slate-400",
-    bar: "bg-slate-400",
-  };
-};
-
-
-const getPriorityStyle = (priority) => {
-  const value = normalize(priority);
-
-  if (value === "high" || value === "urgent") {
-    return "bg-red-50 text-red-700 border-red-200";
-  }
-
-  if (value === "medium" || value === "normal") {
-    return "bg-amber-50 text-amber-700 border-amber-200";
-  }
-
-  if (value === "low") {
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  }
-
-  return "bg-slate-50 text-slate-600 border-slate-200";
-};
-
+/* =========================================================
+   STATUS HELPERS
+========================================================= */
 
 const isCompleted = (task) => {
   const status = normalize(task.Status);
@@ -178,6 +84,135 @@ const isOnHold = (task) => {
 };
 
 
+const getStatusProgress = (status) => {
+  const value = normalize(status);
+
+  if (
+    value.includes("complete") ||
+    value.includes("done") ||
+    value.includes("closed")
+  ) {
+    return 100;
+  }
+
+  if (
+    value.includes("hold") ||
+    value.includes("pending")
+  ) {
+    return 50;
+  }
+
+  if (
+    value.includes("ongoing") ||
+    value.includes("progress") ||
+    value.includes("working")
+  ) {
+    return 65;
+  }
+
+  if (value.includes("start")) {
+    return 0;
+  }
+
+  return 25;
+};
+
+
+const getStatusStyle = (status) => {
+  const value = normalize(status);
+
+  if (
+    value.includes("complete") ||
+    value.includes("done") ||
+    value.includes("closed")
+  ) {
+    return {
+      badge:
+        "border-emerald-200 bg-emerald-50 text-emerald-700",
+      dot: "bg-emerald-500",
+      bar: "bg-emerald-500",
+    };
+  }
+
+  if (
+    value.includes("hold") ||
+    value.includes("pending")
+  ) {
+    return {
+      badge:
+        "border-amber-200 bg-amber-50 text-amber-700",
+      dot: "bg-amber-500",
+      bar: "bg-amber-500",
+    };
+  }
+
+  if (
+    value.includes("ongoing") ||
+    value.includes("progress") ||
+    value.includes("working")
+  ) {
+    return {
+      badge:
+        "border-blue-200 bg-blue-50 text-blue-700",
+      dot: "bg-blue-500",
+      bar: "bg-blue-500",
+    };
+  }
+
+  return {
+    badge:
+      "border-slate-200 bg-slate-50 text-slate-600",
+    dot: "bg-slate-400",
+    bar: "bg-slate-400",
+  };
+};
+
+
+const getPriorityStyle = (priority) => {
+  const value = normalize(priority);
+
+  if (
+    value === "high" ||
+    value === "urgent"
+  ) {
+    return "border-red-200 bg-red-50 text-red-700";
+  }
+
+  if (
+    value === "medium" ||
+    value === "normal"
+  ) {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  if (value === "low") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-600";
+};
+
+
+/* =========================================================
+   FOCAL HELPERS
+========================================================= */
+
+const getTaskFocals = (task) => {
+  return [
+    task["Assigned to"],
+    task["Focal-1"],
+    task["Focal-2"],
+    task["Focal 1"],
+    task["Focal 2"],
+    task.Focal,
+  ]
+    .map((value) =>
+      String(value ?? "").trim()
+    )
+    .filter(Boolean);
+};
+
+
 /* =========================================================
    SMALL COMPONENTS
 ========================================================= */
@@ -191,21 +226,28 @@ const StatusBadge = ({ status }) => {
         inline-flex
         items-center
         gap-1.5
+        whitespace-nowrap
         rounded-full
         border
         px-2.5
         py-1
         text-xs
         font-semibold
-        whitespace-nowrap
         ${style.badge}
       `}
     >
       <span
-        className={`h-1.5 w-1.5 rounded-full ${style.dot}`}
+        className={`
+          h-1.5
+          w-1.5
+          rounded-full
+          ${style.dot}
+        `}
       />
 
-      {status || "Not Set"}
+      {displayValue(status) === "—"
+        ? "Not Set"
+        : status}
     </span>
   );
 };
@@ -215,101 +257,246 @@ const PriorityBadge = ({ priority }) => (
   <span
     className={`
       inline-flex
+      whitespace-nowrap
       rounded-full
       border
       px-2.5
       py-1
       text-xs
       font-semibold
-      whitespace-nowrap
       ${getPriorityStyle(priority)}
     `}
   >
-    {priority || "Not Set"}
+    {displayValue(priority) === "—"
+      ? "Not Set"
+      : priority}
   </span>
 );
 
 
 const ProgressBar = ({ status }) => {
-  const progress = getStatusProgress(status);
-  const style = getStatusStyle(status);
+  const progress =
+    getStatusProgress(status);
+
+  const style =
+    getStatusStyle(status);
 
   return (
     <div className="mt-2">
+
       <div className="mb-1 flex items-center justify-between">
+
         <span className="text-[10px] font-medium text-slate-400">
-          Progress
+          Status progress
         </span>
 
         <span className="text-[10px] font-bold text-slate-500">
           {progress}%
         </span>
+
       </div>
 
       <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+
         <div
-          className={`h-full rounded-full transition-all duration-500 ${style.bar}`}
+          className={`
+            h-full
+            rounded-full
+            transition-all
+            duration-500
+            ${style.bar}
+          `}
           style={{
             width: `${progress}%`,
           }}
         />
+
       </div>
+
     </div>
   );
 };
 
 
+/* =========================================================
+   STAT CARD
+========================================================= */
+
 const StatCard = ({
   title,
   value,
-  icon: Icon,
   description,
-  iconClass,
+  icon: Icon,
+  colorClass,
+  active,
+  onClick,
 }) => (
-  <div
-    className="
+  <button
+    type="button"
+    onClick={onClick}
+    aria-pressed={active}
+    className={`
+      group
+      w-full
       rounded-2xl
       border
-      border-slate-200
-      bg-white
       p-4
-      shadow-sm
-      transition-all
+      text-left
+      transition
       duration-200
       hover:-translate-y-0.5
       hover:shadow-md
-    "
+
+      ${
+        active
+          ? "border-pink-300 bg-pink-50/70 ring-1 ring-pink-200"
+          : "border-slate-200 bg-white hover:border-pink-200"
+      }
+    `}
   >
-    <div className="flex items-start justify-between gap-3">
+
+    <div className="flex items-center justify-between gap-3">
+
       <div className="min-w-0">
-        <p className="text-xs font-medium text-slate-500">
+
+        <p className="text-xs font-semibold text-slate-500">
           {title}
         </p>
 
-        <p className="mt-1 text-2xl font-bold text-slate-800">
+        <p className="mt-1 text-2xl font-bold tracking-tight text-slate-800 sm:text-3xl">
           {value}
         </p>
 
         <p className="mt-1 text-[11px] text-slate-400">
           {description}
         </p>
+
       </div>
 
       <div
         className={`
           flex
-          h-10
-          w-10
+          h-11
+          w-11
           shrink-0
           items-center
           justify-center
           rounded-xl
-          ${iconClass}
+          ${colorClass}
         `}
       >
-        <Icon size={19} />
+        <Icon size={21} />
       </div>
+
     </div>
+
+  </button>
+);
+
+
+/* =========================================================
+   SECTION HEADING
+========================================================= */
+
+const SectionHeading = ({
+  icon: Icon,
+  title,
+  description,
+  action,
+}) => (
+  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+
+    <div className="flex items-center gap-3">
+
+      <div
+        className="
+          flex
+          h-9
+          w-9
+          items-center
+          justify-center
+          rounded-xl
+          bg-pink-50
+          text-pink-600
+        "
+      >
+        <Icon size={18} />
+      </div>
+
+      <div>
+
+        <h2 className="text-sm font-bold text-slate-800">
+          {title}
+        </h2>
+
+        {description && (
+          <p className="mt-0.5 text-xs text-slate-400">
+            {description}
+          </p>
+        )}
+
+      </div>
+
+    </div>
+
+    {action}
+
+  </div>
+);
+
+
+/* =========================================================
+   INFO ITEM
+========================================================= */
+
+const InfoItem = ({
+  icon: Icon,
+  label,
+  value,
+}) => (
+  <div
+    className="
+      rounded-xl
+      border
+      border-slate-100
+      bg-slate-50
+      p-3
+    "
+  >
+
+    <div className="flex items-start gap-3">
+
+      <div
+        className="
+          flex
+          h-8
+          w-8
+          shrink-0
+          items-center
+          justify-center
+          rounded-lg
+          bg-white
+          text-pink-600
+          shadow-sm
+        "
+      >
+        <Icon size={15} />
+      </div>
+
+      <div className="min-w-0">
+
+        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+          {label}
+        </p>
+
+        <p className="mt-1 break-words text-sm font-medium text-slate-700">
+          {displayValue(value)}
+        </p>
+
+      </div>
+
+    </div>
+
   </div>
 );
 
@@ -322,11 +509,17 @@ const TaskDetailsModal = ({
   task,
   onClose,
 }) => {
+
   useEffect(() => {
+
+    if (!task) return undefined;
+
     const handleKeyDown = (event) => {
+
       if (event.key === "Escape") {
         onClose();
       }
+
     };
 
     document.addEventListener(
@@ -340,7 +533,8 @@ const TaskDetailsModal = ({
         handleKeyDown
       );
     };
-  }, [onClose]);
+
+  }, [task, onClose]);
 
 
   if (!task) return null;
@@ -355,17 +549,23 @@ const TaskDetailsModal = ({
         flex
         items-center
         justify-center
-        bg-slate-900/50
+        bg-slate-950/50
         p-3
         backdrop-blur-sm
         sm:p-6
       "
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+
+        if (
+          event.target ===
+          event.currentTarget
+        ) {
           onClose();
         }
+
       }}
     >
+
       <div
         className="
           flex
@@ -380,7 +580,8 @@ const TaskDetailsModal = ({
         "
       >
 
-        {/* Modal Header */}
+        {/* HEADER */}
+
         <div
           className="
             flex
@@ -389,24 +590,38 @@ const TaskDetailsModal = ({
             gap-4
             border-b
             border-slate-100
+            bg-gradient-to-r
+            from-pink-50
+            to-white
             px-5
             py-4
             sm:px-6
           "
         >
+
           <div className="min-w-0">
+
             <p className="mb-1 text-[10px] font-bold uppercase tracking-widest text-pink-600">
-              Task Details
+              Individual Task · #{displayValue(task.SN)}
             </p>
 
             <h2 className="break-words text-lg font-bold text-slate-800">
-              {task["Task Title"] || "Untitled Task"}
+              {task["Task Title"] ||
+                "Untitled Task"}
             </h2>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Review assignment, timeline,
+              focal persons and remarks.
+            </p>
+
           </div>
+
 
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close details"
             className="
               flex
               h-9
@@ -417,43 +632,56 @@ const TaskDetailsModal = ({
               rounded-lg
               text-slate-400
               transition
-              hover:bg-slate-100
+              hover:bg-white
               hover:text-slate-700
             "
-            aria-label="Close details"
           >
             <X size={18} />
           </button>
+
         </div>
 
 
-        {/* Modal Body */}
+        {/* BODY */}
+
         <div className="overflow-y-auto p-5 sm:p-6">
 
-          {/* Status */}
-          <div
-            className="
-              mb-5
-              flex
-              flex-wrap
-              items-center
-              gap-2
-            "
-          >
-            <StatusBadge status={task.Status} />
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+
+            <StatusBadge
+              status={task.Status}
+            />
 
             <PriorityBadge
               priority={task.Priority}
             />
+
+            <span
+              className="
+                rounded-full
+                border
+                border-slate-200
+                bg-white
+                px-2.5
+                py-1
+                text-xs
+                font-semibold
+                text-slate-500
+              "
+            >
+              FY: {displayValue(task.FY)}
+            </span>
+
           </div>
 
 
-          {/* Main information */}
+          {/* INFORMATION */}
+
           <div
             className="
               grid
               grid-cols-1
-              gap-4
+              gap-3
               sm:grid-cols-2
             "
           >
@@ -465,9 +693,21 @@ const TaskDetailsModal = ({
             />
 
             <InfoItem
-              icon={Target}
-              label="FY"
-              value={task.FY}
+              icon={Users}
+              label="Focal-1"
+              value={
+                task["Focal-1"] ||
+                task["Focal 1"]
+              }
+            />
+
+            <InfoItem
+              icon={Users}
+              label="Focal-2"
+              value={
+                task["Focal-2"] ||
+                task["Focal 2"]
+              }
             />
 
             <InfoItem
@@ -490,15 +730,17 @@ const TaskDetailsModal = ({
               icon={Clock3}
               label="Duration"
               value={
-                task["Duration (C.Days)"]
+                task[
+                  "Duration (C.Days)"
+                ]
                   ? `${task["Duration (C.Days)"]} days`
                   : "—"
               }
             />
 
             <InfoItem
-              icon={User}
-              label="Requester"
+              icon={Building2}
+              label="Requester / Unit"
               value={
                 task[
                   "Requester (Unit/Client)"
@@ -512,23 +754,20 @@ const TaskDetailsModal = ({
               value={task.Vendor}
             />
 
-            <InfoItem
-              icon={User}
-              label="Focal-2"
-              value={task["Focal-2"]}
-            />
-
           </div>
 
 
-          {/* Milestone */}
+          {/* MILESTONE */}
+
           <div className="mt-5">
+
             <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
               Milestone / Current Status
             </p>
 
             <div
               className="
+                whitespace-pre-wrap
                 rounded-xl
                 border
                 border-slate-200
@@ -541,19 +780,24 @@ const TaskDetailsModal = ({
             >
               {task[
                 "Mile stones : Current Status"
-              ] || "No milestone information available."}
+              ] ||
+                "No milestone information available."}
             </div>
+
           </div>
 
 
-          {/* Remarks */}
+          {/* REMARKS */}
+
           <div className="mt-5">
+
             <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-400">
               Remarks / Note
             </p>
 
             <div
               className="
+                whitespace-pre-wrap
                 rounded-xl
                 border
                 border-slate-200
@@ -567,69 +811,62 @@ const TaskDetailsModal = ({
               {task["Remarks / Note"] ||
                 "No remarks available."}
             </div>
+
           </div>
 
 
-          {/* Progress */}
+          {/* PROGRESS */}
+
           <div className="mt-5">
+
             <ProgressBar
               status={task.Status}
             />
+
           </div>
 
         </div>
+
+
+        {/* FOOTER */}
+
+        <div
+          className="
+            flex
+            justify-end
+            border-t
+            border-slate-100
+            bg-slate-50
+            px-5
+            py-3
+          "
+        >
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="
+              rounded-lg
+              bg-slate-800
+              px-4
+              py-2
+              text-xs
+              font-semibold
+              text-white
+              transition
+              hover:bg-slate-700
+            "
+          >
+            Close Details
+          </button>
+
+        </div>
+
       </div>
+
     </div>
   );
 };
-
-
-const InfoItem = ({
-  icon: Icon,
-  label,
-  value,
-}) => (
-  <div
-    className="
-      rounded-xl
-      border
-      border-slate-100
-      bg-slate-50
-      p-3
-    "
-  >
-    <div className="flex items-start gap-3">
-
-      <div
-        className="
-          flex
-          h-8
-          w-8
-          shrink-0
-          items-center
-          justify-center
-          rounded-lg
-          bg-white
-          text-pink-600
-          shadow-sm
-        "
-      >
-        <Icon size={15} />
-      </div>
-
-      <div className="min-w-0">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-          {label}
-        </p>
-
-        <p className="mt-1 break-words text-sm font-medium text-slate-700">
-          {value || "—"}
-        </p>
-      </div>
-
-    </div>
-  </div>
-);
 
 
 /* =========================================================
@@ -638,140 +875,192 @@ const InfoItem = ({
 
 const MobileTaskCard = ({
   task,
-  taskKey,
   onViewDetails,
-}) => {
-  return (
-    <article
-      key={taskKey}
+}) => (
+
+  <article
+    className="
+      rounded-2xl
+      border
+      border-slate-200
+      bg-white
+      p-4
+      shadow-sm
+      transition
+      hover:border-pink-200
+      hover:shadow-md
+    "
+  >
+
+    <div className="flex items-start justify-between gap-3">
+
+      <div className="min-w-0">
+
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-pink-600">
+          Task #{displayValue(task.SN)}
+        </p>
+
+        <h3 className="break-words text-sm font-bold leading-5 text-slate-800">
+          {task["Task Title"] ||
+            "Untitled Task"}
+        </h3>
+
+      </div>
+
+      <PriorityBadge
+        priority={task.Priority}
+      />
+
+    </div>
+
+
+    <div className="mt-4 flex flex-wrap items-center gap-2">
+
+      <StatusBadge
+        status={task.Status}
+      />
+
+      {task.FY && (
+        <span
+          className="
+            rounded-full
+            bg-slate-100
+            px-2.5
+            py-1
+            text-xs
+            font-medium
+            text-slate-600
+          "
+        >
+          FY {task.FY}
+        </span>
+      )}
+
+    </div>
+
+
+    <div className="mt-4 grid grid-cols-2 gap-3">
+
+      <div>
+
+        <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+          Assigned To
+        </p>
+
+        <p className="mt-1 break-words text-xs font-semibold text-slate-700">
+          {displayValue(
+            task["Assigned to"]
+          )}
+        </p>
+
+      </div>
+
+
+      <div>
+
+        <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+          Focal-2
+        </p>
+
+        <p className="mt-1 break-words text-xs font-semibold text-slate-700">
+          {displayValue(
+            task["Focal-2"] ||
+            task["Focal 2"]
+          )}
+        </p>
+
+      </div>
+
+
+      <div>
+
+        <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+          Start Date
+        </p>
+
+        <p className="mt-1 text-xs font-semibold text-slate-700">
+          {formatDate(
+            task["Starting Date"]
+          )}
+        </p>
+
+      </div>
+
+
+      <div>
+
+        <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+          End Date
+        </p>
+
+        <p className="mt-1 text-xs font-semibold text-slate-700">
+          {formatDate(
+            task["End Date"]
+          )}
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <ProgressBar
+      status={task.Status}
+    />
+
+
+    <div
       className="
-        rounded-2xl
-        border
-        border-slate-200
-        bg-white
-        p-4
-        shadow-sm
+        mt-4
+        flex
+        items-center
+        justify-between
+        gap-3
+        border-t
+        border-slate-100
+        pt-3
       "
     >
 
-      <div className="flex items-start justify-between gap-3">
-
-        <div className="min-w-0">
-          <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-pink-600">
-            Task #{task.SN || "—"}
-          </p>
-
-          <h3 className="break-words text-sm font-bold leading-5 text-slate-800">
-            {task["Task Title"] ||
-              "Untitled Task"}
-          </h3>
-        </div>
-
-        <PriorityBadge
-          priority={task.Priority}
-        />
-
-      </div>
+      <p className="max-w-[65%] truncate text-xs text-slate-400">
+        {task[
+          "Requester (Unit/Client)"
+        ] ||
+          "No requester"}
+      </p>
 
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-
-        <div>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-            Assigned To
-          </p>
-
-          <p className="mt-1 truncate text-xs font-semibold text-slate-700">
-            {task["Assigned to"] || "—"}
-          </p>
-        </div>
-
-
-        <div>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-            Status
-          </p>
-
-          <div className="mt-1">
-            <StatusBadge status={task.Status} />
-          </div>
-        </div>
-
-
-        <div>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-            Start Date
-          </p>
-
-          <p className="mt-1 text-xs font-semibold text-slate-700">
-            {formatDate(task["Starting Date"])}
-          </p>
-        </div>
-
-
-        <div>
-          <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
-            End Date
-          </p>
-
-          <p className="mt-1 text-xs font-semibold text-slate-700">
-            {formatDate(task["End Date"])}
-          </p>
-        </div>
-
-      </div>
-
-
-      <ProgressBar status={task.Status} />
-
-
-      <div
+      <button
+        type="button"
+        onClick={() =>
+          onViewDetails(task)
+        }
         className="
-          mt-4
-          flex
+          inline-flex
           items-center
-          justify-between
-          border-t
-          border-slate-100
-          pt-3
+          gap-1.5
+          rounded-lg
+          bg-pink-50
+          px-3
+          py-2
+          text-xs
+          font-semibold
+          text-pink-700
+          transition
+          hover:bg-pink-100
         "
       >
 
-        <p className="max-w-[65%] truncate text-xs text-slate-400">
-          {task[
-            "Requester (Unit/Client)"
-          ] || "No requester"}
-        </p>
+        <Eye size={14} />
 
-        <button
-          type="button"
-          onClick={() =>
-            onViewDetails(task)
-          }
-          className="
-            inline-flex
-            items-center
-            gap-1
-            rounded-lg
-            bg-pink-50
-            px-3
-            py-2
-            text-xs
-            font-semibold
-            text-pink-700
-            transition
-            hover:bg-pink-100
-          "
-        >
-          <Eye size={14} />
-          Details
-        </button>
+        View Details
 
-      </div>
+      </button>
 
-    </article>
-  );
-};
+    </div>
+
+  </article>
+);
 
 
 /* =========================================================
@@ -780,7 +1069,8 @@ const MobileTaskCard = ({
 
 const IndividualTask = () => {
 
-  const [tasks, setTasks] = useState([]);
+  const [tasks, setTasks] =
+    useState([]);
 
   const [loading, setLoading] =
     useState(true);
@@ -791,6 +1081,9 @@ const IndividualTask = () => {
   const [error, setError] =
     useState("");
 
+
+  /* FILTER STATES */
+
   const [searchTerm, setSearchTerm] =
     useState("");
 
@@ -800,6 +1093,12 @@ const IndividualTask = () => {
   const [priorityFilter, setPriorityFilter] =
     useState("All");
 
+  const [focalFilter, setFocalFilter] =
+    useState("All");
+
+
+  /* MODAL */
+
   const [selectedTask, setSelectedTask] =
     useState(null);
 
@@ -808,94 +1107,169 @@ const IndividualTask = () => {
      LOAD DATA
   ===================================================== */
 
-  const loadTasks = async (
-    forceRefresh = false
-  ) => {
+  const loadTasks = useCallback(
+    async (forceRefresh = false) => {
 
-    try {
+      try {
 
-      setError("");
+        setError("");
 
-      if (forceRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+        if (forceRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
 
 
-      const data =
-        await fetchIndividualTasks(
-          forceRefresh
+        const data =
+          await fetchIndividualTasks(
+            forceRefresh
+          );
+
+
+        setTasks(
+          Array.isArray(data)
+            ? data
+            : []
         );
 
+      } catch (err) {
 
-      if (Array.isArray(data)) {
-        setTasks(data);
-      } else {
-        setTasks([]);
+        console.error(
+          "Individual Task Error:",
+          err
+        );
+
+        setError(
+          err?.message ||
+            "Unable to load individual tasks."
+        );
+
+      } finally {
+
+        setLoading(false);
+        setRefreshing(false);
+
       }
 
-    } catch (err) {
-
-      console.error(
-        "Individual Task Error:",
-        err
-      );
-
-      setError(
-        err.message ||
-          "Unable to load individual tasks."
-      );
-
-    } finally {
-
-      setLoading(false);
-      setRefreshing(false);
-
-    }
-
-  };
+    },
+    []
+  );
 
 
   useEffect(() => {
+
     loadTasks(false);
-  }, []);
+
+  }, [loadTasks]);
 
 
   /* =====================================================
-     DYNAMIC FILTER OPTIONS
+     DYNAMIC STATUS OPTIONS
   ===================================================== */
 
   const statuses = useMemo(() => {
 
-    const values = tasks
-      .map((task) => task.Status)
-      .filter(Boolean)
-      .map((value) => String(value).trim());
+    const values =
+      tasks
+        .map((task) =>
+          String(
+            task.Status ?? ""
+          ).trim()
+        )
+        .filter(Boolean);
+
 
     return [
       "All",
       ...Array.from(
         new Set(values)
+      ).sort((a, b) =>
+        a.localeCompare(b)
       ),
     ];
 
   }, [tasks]);
 
 
+  /* =====================================================
+     DYNAMIC PRIORITY OPTIONS
+  ===================================================== */
+
   const priorities = useMemo(() => {
 
-    const values = tasks
-      .map((task) => task.Priority)
-      .filter(Boolean)
-      .map((value) => String(value).trim());
+    const values =
+      tasks
+        .map((task) =>
+          String(
+            task.Priority ?? ""
+          ).trim()
+        )
+        .filter(Boolean);
+
 
     return [
       "All",
       ...Array.from(
         new Set(values)
+      ).sort((a, b) =>
+        a.localeCompare(b)
       ),
     ];
+
+  }, [tasks]);
+
+
+  /* =====================================================
+     DYNAMIC FOCAL OPTIONS
+  ===================================================== */
+
+  const focals = useMemo(() => {
+
+    const values =
+      tasks.flatMap(
+        getTaskFocals
+      );
+
+
+    return [
+      "All",
+      ...Array.from(
+        new Set(values)
+      ).sort((a, b) =>
+        a.localeCompare(b)
+      ),
+    ];
+
+  }, [tasks]);
+
+
+  /* =====================================================
+     STATISTICS
+  ===================================================== */
+
+  const stats = useMemo(() => {
+
+    return {
+
+      total: tasks.length,
+
+      ongoing:
+        tasks.filter(
+          isOngoing
+        ).length,
+
+      completed:
+        tasks.filter(
+          isCompleted
+        ).length,
+
+      onHold:
+        tasks.filter(
+          isOnHold
+        ).length,
+
+    };
 
   }, [tasks]);
 
@@ -910,108 +1284,117 @@ const IndividualTask = () => {
       normalize(searchTerm);
 
 
-    return tasks.filter((task) => {
+    return tasks.filter(
+      (task) => {
 
-      const searchableText = [
-        task.SN,
-        task["Assigned to"],
-        task.Priority,
-        task.FY,
-        task["Task Title"],
-        task[
-          "Mile stones : Current Status"
-        ],
-        task["Starting Date"],
-        task["End Date"],
-        task["Duration (C.Days)"],
-        task.Status,
-        task[
-          "Requester (Unit/Client)"
-        ],
-        task.Vendor,
-        task["Focal-2"],
-        task["Remarks / Note"],
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+        const searchableText =
+          Object.values(task)
+            .filter(
+              (value) =>
+                value !== null &&
+                value !== undefined
+            )
+            .map(String)
+            .join(" ")
+            .toLowerCase();
 
 
-      const matchesSearch =
-        !search ||
-        searchableText.includes(search);
+        const matchesSearch =
+          !search ||
+          searchableText.includes(
+            search
+          );
 
 
-      const matchesStatus =
-        statusFilter === "All" ||
-        normalize(task.Status) ===
-          normalize(statusFilter);
+        const matchesStatus =
+          statusFilter === "All" ||
+          normalize(
+            task.Status
+          ) ===
+            normalize(
+              statusFilter
+            );
 
 
-      const matchesPriority =
-        priorityFilter === "All" ||
-        normalize(task.Priority) ===
-          normalize(priorityFilter);
+        const matchesPriority =
+          priorityFilter === "All" ||
+          normalize(
+            task.Priority
+          ) ===
+            normalize(
+              priorityFilter
+            );
 
 
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesPriority
-      );
+        const matchesFocal =
+          focalFilter === "All" ||
+          getTaskFocals(
+            task
+          ).some(
+            (focal) =>
+              normalize(
+                focal
+              ) ===
+                normalize(
+                  focalFilter
+                )
+          );
 
-    });
+
+        return (
+          matchesSearch &&
+          matchesStatus &&
+          matchesPriority &&
+          matchesFocal
+        );
+
+      }
+    );
 
   }, [
     tasks,
     searchTerm,
     statusFilter,
     priorityFilter,
+    focalFilter,
   ]);
 
 
   /* =====================================================
-     STATISTICS
-  ===================================================== */
-
-  const stats = useMemo(() => {
-
-    const total = tasks.length;
-
-    const completed =
-      tasks.filter(isCompleted).length;
-
-    const ongoing =
-      tasks.filter(isOngoing).length;
-
-    const onHold =
-      tasks.filter(isOnHold).length;
-
-    return {
-      total,
-      completed,
-      ongoing,
-      onHold,
-    };
-
-  }, [tasks]);
-
-
-  /* =====================================================
-     CLEAR FILTERS
+     FILTER CONTROLS
   ===================================================== */
 
   const clearFilters = () => {
+
     setSearchTerm("");
     setStatusFilter("All");
     setPriorityFilter("All");
+    setFocalFilter("All");
+
   };
 
 
   const hasActiveFilters =
-    Boolean(searchTerm) ||
+    Boolean(
+      searchTerm.trim()
+    ) ||
     statusFilter !== "All" ||
-    priorityFilter !== "All";
+    priorityFilter !== "All" ||
+    focalFilter !== "All";
+
+
+  const selectStatus = (
+    status
+  ) => {
+
+    setStatusFilter(
+      (current) =>
+        current === status
+          ? "All"
+          : status
+    );
+
+  };
 
 
   /* =====================================================
@@ -1019,7 +1402,14 @@ const IndividualTask = () => {
   ===================================================== */
 
   return (
-    <div className="dashboard-fade min-h-screen bg-slate-50">
+
+    <div
+      className="
+        dashboard-fade
+        min-h-screen
+        bg-slate-50
+      "
+    >
 
       <div
         className="
@@ -1035,113 +1425,247 @@ const IndividualTask = () => {
       >
 
         {/* =================================================
-            PAGE HEADER
+            HEADER
         ================================================= */}
 
-        <div
+        <header
           className="
-            mb-5
-            flex
-            flex-col
-            gap-4
-            sm:flex-row
-            sm:items-center
-            sm:justify-between
+            relative
+            mb-6
+            overflow-hidden
+            rounded-2xl
+            bg-gradient-to-r
+            from-pink-700
+            via-pink-600
+            to-rose-500
+            p-5
+            text-white
+            shadow-md
+            sm:p-7
           "
         >
 
-          <div className="min-w-0">
+          <div
+            className="
+              pointer-events-none
+              absolute
+              -right-10
+              -top-16
+              h-56
+              w-56
+              rounded-full
+              border-[28px]
+              border-white/10
+            "
+          />
 
-            <div className="flex items-center gap-3">
+          <div
+            className="
+              pointer-events-none
+              absolute
+              -bottom-20
+              right-40
+              h-48
+              w-48
+              rounded-full
+              bg-white/10
+              blur-2xl
+            "
+          />
+
+
+          <div
+            className="
+              relative
+              flex
+              flex-col
+              gap-5
+              sm:flex-row
+              sm:items-center
+              sm:justify-between
+            "
+          >
+
+            <div
+              className="
+                flex
+                items-start
+                gap-3
+              "
+            >
 
               <div
                 className="
                   flex
-                  h-11
-                  w-11
+                  h-12
+                  w-12
                   shrink-0
                   items-center
                   justify-center
                   rounded-xl
-                  bg-pink-600
-                  text-white
+                  border
+                  border-white/20
+                  bg-white/15
                   shadow-sm
                 "
               >
-                <ListTodo size={21} />
+                <ListTodo size={24} />
               </div>
+
 
               <div className="min-w-0">
 
+                <p
+                  className="
+                    text-[10px]
+                    font-bold
+                    uppercase
+                    tracking-[0.2em]
+                    text-pink-100
+                  "
+                >
+                  Microfinance Technology
+                </p>
+
                 <h1
                   className="
-                    truncate
+                    mt-1
                     text-xl
                     font-bold
-                    text-slate-800
                     sm:text-2xl
                   "
                 >
                   Individual Tasks
                 </h1>
 
-                <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                  Monitor assigned tasks, progress and current status
+                <p
+                  className="
+                    mt-1
+                    max-w-xl
+                    text-xs
+                    leading-5
+                    text-pink-50
+                    sm:text-sm
+                  "
+                >
+                  Track assignments, focal persons,
+                  timelines and delivery status in
+                  one place.
                 </p>
 
               </div>
 
             </div>
 
+
+            <button
+              type="button"
+              onClick={() =>
+                loadTasks(true)
+              }
+              disabled={refreshing}
+              className="
+                inline-flex
+                items-center
+                justify-center
+                gap-2
+                self-start
+                rounded-xl
+                border
+                border-white/25
+                bg-white/15
+                px-4
+                py-2.5
+                text-sm
+                font-semibold
+                text-white
+                backdrop-blur-sm
+                transition
+                hover:bg-white/25
+                disabled:cursor-not-allowed
+                disabled:opacity-60
+                sm:self-auto
+              "
+            >
+
+              {refreshing ? (
+                <Loader2
+                  size={16}
+                  className="animate-spin"
+                />
+              ) : (
+                <RefreshCw size={16} />
+              )}
+
+              {refreshing
+                ? "Refreshing..."
+                : "Refresh Data"}
+
+            </button>
+
           </div>
 
 
-          <button
-            type="button"
-            onClick={() => loadTasks(true)}
-            disabled={refreshing}
+          <div
             className="
-              inline-flex
-              w-full
-              items-center
-              justify-center
+              relative
+              mt-5
+              flex
+              flex-wrap
               gap-2
-              rounded-xl
-              border
-              border-slate-200
-              bg-white
-              px-4
-              py-2.5
-              text-sm
-              font-semibold
-              text-slate-700
-              shadow-sm
-              transition
-              hover:border-pink-200
-              hover:bg-pink-50
-              hover:text-pink-700
-              disabled:cursor-not-allowed
-              disabled:opacity-60
-              sm:w-auto
             "
           >
 
-            {refreshing ? (
-              <Loader2
-                size={16}
-                className="animate-spin"
+            <span
+              className="
+                rounded-full
+                border
+                border-white/20
+                bg-white/10
+                px-3
+                py-1.5
+                text-xs
+                text-white
+              "
+            >
+              <ClipboardList
+                size={13}
+                className="mr-1.5 inline"
               />
-            ) : (
-              <RefreshCw size={16} />
-            )}
 
-            {refreshing
-              ? "Refreshing..."
-              : "Refresh"}
+              {stats.total} total tasks
 
-          </button>
+            </span>
 
-        </div>
+
+            <span
+              className="
+                rounded-full
+                border
+                border-white/20
+                bg-white/10
+                px-3
+                py-1.5
+                text-xs
+                text-white
+              "
+            >
+              <Users
+                size={13}
+                className="mr-1.5 inline"
+              />
+
+              {Math.max(
+                focals.length - 1,
+                0
+              )}{" "}
+              focal persons
+
+            </span>
+
+          </div>
+
+        </header>
 
 
         {/* =================================================
@@ -1149,6 +1673,7 @@ const IndividualTask = () => {
         ================================================= */}
 
         {error && (
+
           <div
             className="
               mb-5
@@ -1166,21 +1691,46 @@ const IndividualTask = () => {
             "
           >
 
-            <div className="flex items-start gap-3">
+            <div
+              className="
+                flex
+                items-start
+                gap-3
+              "
+            >
 
               <AlertCircle
                 size={19}
-                className="mt-0.5 shrink-0 text-red-600"
+                className="
+                  mt-0.5
+                  shrink-0
+                  text-red-600
+                "
               />
 
               <div>
-                <p className="text-sm font-semibold text-red-800">
+
+                <p
+                  className="
+                    text-sm
+                    font-semibold
+                    text-red-800
+                  "
+                >
                   Unable to load tasks
                 </p>
 
-                <p className="mt-0.5 break-words text-xs text-red-600">
+                <p
+                  className="
+                    mt-0.5
+                    break-words
+                    text-xs
+                    text-red-600
+                  "
+                >
                   {error}
                 </p>
+
               </div>
 
             </div>
@@ -1188,7 +1738,9 @@ const IndividualTask = () => {
 
             <button
               type="button"
-              onClick={() => loadTasks(true)}
+              onClick={() =>
+                loadTasks(true)
+              }
               className="
                 rounded-lg
                 bg-red-600
@@ -1204,20 +1756,28 @@ const IndividualTask = () => {
             </button>
 
           </div>
+
         )}
 
 
         {/* =================================================
-            STAT CARDS
+            OVERVIEW
         ================================================= */}
+
+        <SectionHeading
+          icon={Target}
+          title="Task Overview"
+          description="Click a card to filter the task list by status."
+        />
+
 
         <div
           className="
-            mb-5
+            mb-7
             grid
             grid-cols-2
             gap-3
-            lg:grid-cols-4
+            xl:grid-cols-4
           "
         >
 
@@ -1226,116 +1786,119 @@ const IndividualTask = () => {
             value={stats.total}
             description="All assigned tasks"
             icon={ListTodo}
-            iconClass="bg-pink-50 text-pink-600"
+            colorClass="bg-pink-50 text-pink-600"
+            active={
+              statusFilter === "All"
+            }
+            onClick={() =>
+              setStatusFilter("All")
+            }
           />
+
 
           <StatCard
             title="Ongoing"
             value={stats.ongoing}
             description="Currently in progress"
             icon={Clock3}
-            iconClass="bg-blue-50 text-blue-600"
+            colorClass="bg-blue-50 text-blue-600"
+            active={
+              statusFilter === "ongoing"
+            }
+            onClick={() =>
+              selectStatus("ongoing")
+            }
           />
+
 
           <StatCard
             title="Completed"
             value={stats.completed}
             description="Successfully completed"
             icon={CheckCircle2}
-            iconClass="bg-emerald-50 text-emerald-600"
+            colorClass="bg-emerald-50 text-emerald-600"
+            active={
+              statusFilter === "completed"
+            }
+            onClick={() =>
+              selectStatus("completed")
+            }
           />
+
 
           <StatCard
             title="On Hold"
             value={stats.onHold}
             description="Pending or on hold"
-            icon={AlertCircle}
-            iconClass="bg-amber-50 text-amber-600"
+            icon={CirclePause}
+            colorClass="bg-amber-50 text-amber-600"
+            active={
+              statusFilter === "hold"
+            }
+            onClick={() =>
+              selectStatus("hold")
+            }
           />
 
         </div>
 
 
         {/* =================================================
-            FILTER TOOLBAR
+            FILTER SECTION
         ================================================= */}
 
         <section
           className="
-            mb-5
+            mb-6
             rounded-2xl
             border
             border-slate-200
             bg-white
             p-4
             shadow-sm
+            sm:p-5
           "
         >
 
-          <div
-            className="
-              mb-3
-              flex
-              flex-col
-              gap-2
-              sm:flex-row
-              sm:items-center
-              sm:justify-between
+          <SectionHeading
+            icon={Filter}
+            title="Find & Filter Tasks"
+            description="
+              Combine focal-wise, status,
+              priority and keyword filters.
             "
-          >
+            action={
+              hasActiveFilters ? (
 
-            <div className="flex items-center gap-2">
-
-              <Filter
-                size={16}
-                className="text-pink-600"
-              />
-
-              <h2 className="text-sm font-bold text-slate-700">
-                Search &amp; Filter
-              </h2>
-
-              {hasActiveFilters && (
-                <span
+                <button
+                  type="button"
+                  onClick={clearFilters}
                   className="
-                    rounded-full
-                    bg-pink-100
-                    px-2
-                    py-0.5
-                    text-[10px]
-                    font-bold
+                    inline-flex
+                    items-center
+                    gap-1.5
+                    self-start
+                    rounded-lg
+                    px-3
+                    py-2
+                    text-xs
+                    font-semibold
                     text-pink-700
+                    transition
+                    hover:bg-pink-50
+                    sm:self-auto
                   "
                 >
-                  Active
-                </span>
-              )}
 
-            </div>
+                  <RotateCcw size={13} />
 
+                  Reset filters
 
-            {hasActiveFilters && (
-              <button
-                type="button"
-                onClick={clearFilters}
-                className="
-                  inline-flex
-                  items-center
-                  gap-1
-                  self-start
-                  text-xs
-                  font-semibold
-                  text-pink-600
-                  hover:text-pink-700
-                  sm:self-auto
-                "
-              >
-                <X size={13} />
-                Clear filters
-              </button>
-            )}
+                </button>
 
-          </div>
+              ) : null
+            }
+          />
 
 
           <div
@@ -1343,12 +1906,20 @@ const IndividualTask = () => {
               grid
               grid-cols-1
               gap-3
-              md:grid-cols-[minmax(0,1fr)_180px_180px]
+              sm:grid-cols-2
+              xl:grid-cols-4
             "
           >
 
-            {/* Search */}
-            <div className="relative">
+            {/* SEARCH */}
+
+            <div
+              className="
+                relative
+                sm:col-span-2
+                xl:col-span-1
+              "
+            >
 
               <Search
                 size={17}
@@ -1370,7 +1941,10 @@ const IndividualTask = () => {
                     event.target.value
                   )
                 }
-                placeholder="Search task, assignee, requester, vendor..."
+                placeholder="
+                  Search task, person,
+                  vendor...
+                "
                 className="
                   h-11
                   w-full
@@ -1395,86 +1969,356 @@ const IndividualTask = () => {
             </div>
 
 
-            {/* Status */}
-            <select
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(
-                  event.target.value
-                )
-              }
+            {/* FOCAL FILTER */}
+
+            <div className="relative">
+
+              <Users
+                size={16}
+                className="
+                  pointer-events-none
+                  absolute
+                  left-3
+                  top-1/2
+                  -translate-y-1/2
+                  text-pink-600
+                "
+              />
+
+              <select
+                value={focalFilter}
+                onChange={(event) =>
+                  setFocalFilter(
+                    event.target.value
+                  )
+                }
+                aria-label="Filter by focal person"
+                className="
+                  h-11
+                  w-full
+                  appearance-none
+                  rounded-xl
+                  border
+                  border-pink-200
+                  bg-pink-50/50
+                  pl-9
+                  pr-8
+                  text-sm
+                  font-medium
+                  text-slate-700
+                  outline-none
+                  focus:border-pink-400
+                  focus:bg-white
+                  focus:ring-2
+                  focus:ring-pink-100
+                "
+              >
+
+                {focals.map(
+                  (focal) => (
+                    <option
+                      key={focal}
+                      value={focal}
+                    >
+                      {focal === "All"
+                        ? "All Focal Persons"
+                        : focal}
+                    </option>
+                  )
+                )}
+
+              </select>
+
+
+              <ChevronRight
+                size={15}
+                className="
+                  pointer-events-none
+                  absolute
+                  right-3
+                  top-1/2
+                  -translate-y-1/2
+                  rotate-90
+                  text-slate-400
+                "
+              />
+
+            </div>
+
+
+            {/* STATUS */}
+
+            <div className="relative">
+
+              <CheckCircle2
+                size={16}
+                className="
+                  pointer-events-none
+                  absolute
+                  left-3
+                  top-1/2
+                  -translate-y-1/2
+                  text-slate-400
+                "
+              />
+
+              <select
+                value={statusFilter}
+                onChange={(event) =>
+                  setStatusFilter(
+                    event.target.value
+                  )
+                }
+                aria-label="Filter by status"
+                className="
+                  h-11
+                  w-full
+                  appearance-none
+                  rounded-xl
+                  border
+                  border-slate-200
+                  bg-slate-50
+                  pl-9
+                  pr-8
+                  text-sm
+                  font-medium
+                  text-slate-700
+                  outline-none
+                  focus:border-pink-400
+                  focus:bg-white
+                  focus:ring-2
+                  focus:ring-pink-100
+                "
+              >
+
+                <option value="All">
+                  All Statuses
+                </option>
+
+                {statuses
+                  .filter(
+                    (status) =>
+                      status !== "All"
+                  )
+                  .map(
+                    (status) => (
+                      <option
+                        key={status}
+                        value={status}
+                      >
+                        {status}
+                      </option>
+                    )
+                  )}
+
+              </select>
+
+
+              <ChevronRight
+                size={15}
+                className="
+                  pointer-events-none
+                  absolute
+                  right-3
+                  top-1/2
+                  -translate-y-1/2
+                  rotate-90
+                  text-slate-400
+                "
+              />
+
+            </div>
+
+
+            {/* PRIORITY */}
+
+            <div className="relative">
+
+              <Target
+                size={16}
+                className="
+                  pointer-events-none
+                  absolute
+                  left-3
+                  top-1/2
+                  -translate-y-1/2
+                  text-slate-400
+                "
+              />
+
+              <select
+                value={priorityFilter}
+                onChange={(event) =>
+                  setPriorityFilter(
+                    event.target.value
+                  )
+                }
+                aria-label="Filter by priority"
+                className="
+                  h-11
+                  w-full
+                  appearance-none
+                  rounded-xl
+                  border
+                  border-slate-200
+                  bg-slate-50
+                  pl-9
+                  pr-8
+                  text-sm
+                  font-medium
+                  text-slate-700
+                  outline-none
+                  focus:border-pink-400
+                  focus:bg-white
+                  focus:ring-2
+                  focus:ring-pink-100
+                "
+              >
+
+                <option value="All">
+                  All Priorities
+                </option>
+
+                {priorities
+                  .filter(
+                    (priority) =>
+                      priority !== "All"
+                  )
+                  .map(
+                    (priority) => (
+                      <option
+                        key={priority}
+                        value={priority}
+                      >
+                        {priority}
+                      </option>
+                    )
+                  )}
+
+              </select>
+
+
+              <ChevronRight
+                size={15}
+                className="
+                  pointer-events-none
+                  absolute
+                  right-3
+                  top-1/2
+                  -translate-y-1/2
+                  rotate-90
+                  text-slate-400
+                "
+              />
+
+            </div>
+
+          </div>
+
+
+          {/* ACTIVE FILTER SUMMARY */}
+
+          <div
+            className="
+              mt-4
+              flex
+              flex-wrap
+              items-center
+              justify-between
+              gap-2
+              border-t
+              border-slate-100
+              pt-3
+            "
+          >
+
+            <p className="text-xs text-slate-500">
+
+              Showing{" "}
+
+              <span className="font-bold text-slate-800">
+                {filteredTasks.length}
+              </span>{" "}
+
+              of{" "}
+
+              <span className="font-bold text-slate-800">
+                {tasks.length}
+              </span>{" "}
+
+              tasks
+
+            </p>
+
+
+            <div
               className="
-                h-11
-                w-full
-                rounded-xl
-                border
-                border-slate-200
-                bg-slate-50
-                px-3
-                text-sm
-                font-medium
-                text-slate-700
-                outline-none
-                focus:border-pink-400
-                focus:bg-white
-                focus:ring-2
-                focus:ring-pink-100
+                flex
+                flex-wrap
+                gap-2
               "
             >
 
-              {statuses.map((status) => (
-                <option
-                  key={status}
-                  value={status}
+              {focalFilter !==
+                "All" && (
+
+                <span
+                  className="
+                    rounded-full
+                    bg-pink-50
+                    px-2.5
+                    py-1
+                    text-[11px]
+                    font-semibold
+                    text-pink-700
+                  "
                 >
-                  {status === "All"
-                    ? "All Statuses"
-                    : status}
-                </option>
-              ))}
+                  Focal: {focalFilter}
+                </span>
 
-            </select>
+              )}
 
 
-            {/* Priority */}
-            <select
-              value={priorityFilter}
-              onChange={(event) =>
-                setPriorityFilter(
-                  event.target.value
-                )
-              }
-              className="
-                h-11
-                w-full
-                rounded-xl
-                border
-                border-slate-200
-                bg-slate-50
-                px-3
-                text-sm
-                font-medium
-                text-slate-700
-                outline-none
-                focus:border-pink-400
-                focus:bg-white
-                focus:ring-2
-                focus:ring-pink-100
-              "
-            >
+              {statusFilter !==
+                "All" && (
 
-              {priorities.map((priority) => (
-                <option
-                  key={priority}
-                  value={priority}
+                <span
+                  className="
+                    rounded-full
+                    bg-blue-50
+                    px-2.5
+                    py-1
+                    text-[11px]
+                    font-semibold
+                    text-blue-700
+                  "
                 >
-                  {priority === "All"
-                    ? "All Priorities"
-                    : priority}
-                </option>
-              ))}
+                  Status: {statusFilter}
+                </span>
 
-            </select>
+              )}
+
+
+              {priorityFilter !==
+                "All" && (
+
+                <span
+                  className="
+                    rounded-full
+                    bg-amber-50
+                    px-2.5
+                    py-1
+                    text-[11px]
+                    font-semibold
+                    text-amber-700
+                  "
+                >
+                  Priority: {priorityFilter}
+                </span>
+
+              )}
+
+            </div>
 
           </div>
 
@@ -1482,7 +2326,7 @@ const IndividualTask = () => {
 
 
         {/* =================================================
-            RESULTS HEADER
+            TASK LIST HEADER
         ================================================= */}
 
         <div
@@ -1492,30 +2336,55 @@ const IndividualTask = () => {
             flex-col
             gap-1
             sm:flex-row
-            sm:items-center
+            sm:items-end
             sm:justify-between
           "
         >
 
           <div>
 
-            <h2 className="text-sm font-bold text-slate-700">
-              Task List
+            <h2
+              className="
+                text-base
+                font-bold
+                text-slate-800
+              "
+            >
+              Task Register
             </h2>
 
-            <p className="text-xs text-slate-400">
-              Showing{" "}
-              <span className="font-semibold text-slate-600">
-                {filteredTasks.length}
-              </span>{" "}
-              of{" "}
-              <span className="font-semibold text-slate-600">
-                {tasks.length}
-              </span>{" "}
-              tasks
+            <p
+              className="
+                mt-0.5
+                text-xs
+                text-slate-400
+              "
+            >
+              Select a task to view its
+              complete information.
             </p>
 
           </div>
+
+
+          {!loading && (
+
+            <span
+              className="
+                text-xs
+                font-medium
+                text-slate-500
+              "
+            >
+              {filteredTasks.length}{" "}
+              result
+              {filteredTasks.length ===
+              1
+                ? ""
+                : "s"}
+            </span>
+
+          )}
 
         </div>
 
@@ -1525,6 +2394,7 @@ const IndividualTask = () => {
         ================================================= */}
 
         {loading && (
+
           <div
             className="
               flex
@@ -1541,27 +2411,46 @@ const IndividualTask = () => {
 
             <Loader2
               size={30}
-              className="animate-spin text-pink-600"
+              className="
+                animate-spin
+                text-pink-600
+              "
             />
 
-            <p className="mt-3 text-sm font-semibold text-slate-600">
+            <p
+              className="
+                mt-3
+                text-sm
+                font-semibold
+                text-slate-600
+              "
+            >
               Loading tasks...
             </p>
 
-            <p className="mt-1 text-xs text-slate-400">
-              Please wait while the latest data is retrieved.
+            <p
+              className="
+                mt-1
+                text-xs
+                text-slate-400
+              "
+            >
+              Retrieving the latest task data.
             </p>
 
           </div>
+
         )}
 
 
         {/* =================================================
-            EMPTY STATE
+            EMPTY
         ================================================= */}
 
         {!loading &&
-          filteredTasks.length === 0 && (
+          filteredTasks.length ===
+            0 && (
+
             <div
               className="
                 flex
@@ -1591,21 +2480,45 @@ const IndividualTask = () => {
                   text-slate-400
                 "
               >
-                <ListTodo size={25} />
+                <ListTodo
+                  size={25}
+                />
               </div>
 
-              <h3 className="mt-4 text-sm font-bold text-slate-700">
+
+              <h3
+                className="
+                  mt-4
+                  text-sm
+                  font-bold
+                  text-slate-700
+                "
+              >
                 No tasks found
               </h3>
 
-              <p className="mt-1 max-w-sm text-xs text-slate-400">
-                Try changing your search term or filters.
+
+              <p
+                className="
+                  mt-1
+                  max-w-sm
+                  text-xs
+                  text-slate-400
+                "
+              >
+                Try another focal person,
+                search term or filter
+                combination.
               </p>
 
+
               {hasActiveFilters && (
+
                 <button
                   type="button"
-                  onClick={clearFilters}
+                  onClick={
+                    clearFilters
+                  }
                   className="
                     mt-4
                     rounded-lg
@@ -1615,45 +2528,57 @@ const IndividualTask = () => {
                     text-xs
                     font-semibold
                     text-white
+                    transition
                     hover:bg-pink-700
                   "
                 >
-                  Clear Filters
+                  Clear All Filters
                 </button>
+
               )}
 
             </div>
+
           )}
 
 
         {/* =================================================
-            MOBILE CARDS
+            MOBILE
         ================================================= */}
 
         {!loading &&
-          filteredTasks.length > 0 && (
-            <div className="space-y-3 md:hidden">
+          filteredTasks.length >
+            0 && (
+
+            <div
+              className="
+                space-y-3
+                md:hidden
+              "
+            >
 
               {filteredTasks.map(
-                (task, index) => (
+                (
+                  task,
+                  index
+                ) => (
+
                   <MobileTaskCard
                     key={getTaskKey(
                       task,
                       index
                     )}
                     task={task}
-                    taskKey={getTaskKey(
-                      task,
-                      index
-                    )}
                     onViewDetails={
                       setSelectedTask
                     }
                   />
+
                 )
               )}
 
             </div>
+
           )}
 
 
@@ -1662,7 +2587,9 @@ const IndividualTask = () => {
         ================================================= */}
 
         {!loading &&
-          filteredTasks.length > 0 && (
+          filteredTasks.length >
+            0 && (
+
             <div
               className="
                 hidden
@@ -1676,12 +2603,29 @@ const IndividualTask = () => {
               "
             >
 
-              <div className="overflow-x-auto">
+              <div
+                className="
+                  overflow-x-auto
+                "
+              >
 
-                <table className="w-full min-w-[1050px] border-collapse">
+                <table
+                  className="
+                    w-full
+                    min-w-[1100px]
+                    border-collapse
+                  "
+                >
 
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50">
+
+                    <tr
+                      className="
+                        border-b
+                        border-slate-200
+                        bg-slate-50
+                      "
+                    >
 
                       <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
                         Task
@@ -1689,6 +2633,10 @@ const IndividualTask = () => {
 
                       <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
                         Assigned To
+                      </th>
+
+                      <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                        Focal Persons
                       </th>
 
                       <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-wider text-slate-500">
@@ -1712,217 +2660,420 @@ const IndividualTask = () => {
                       </th>
 
                     </tr>
+
                   </thead>
 
 
                   <tbody>
 
                     {filteredTasks.map(
-                      (task, index) => (
-                        <tr
-                          key={getTaskKey(
-                            task,
-                            index
-                          )}
-                          className="
-                            border-b
-                            border-slate-100
-                            last:border-b-0
-                            transition
-                            hover:bg-pink-50/30
-                          "
-                        >
+                      (
+                        task,
+                        index
+                      ) => {
 
-                          {/* Task */}
-                          <td className="max-w-[320px] px-4 py-4">
-
-                            <div className="flex items-start gap-3">
-
-                              <div
-                                className="
-                                  mt-0.5
-                                  flex
-                                  h-8
-                                  w-8
-                                  shrink-0
-                                  items-center
-                                  justify-center
-                                  rounded-lg
-                                  bg-pink-50
-                                  text-xs
-                                  font-bold
-                                  text-pink-600
-                                "
-                              >
-                                {task.SN || "—"}
-                              </div>
-
-                              <div className="min-w-0">
-
-                                <p className="break-words text-sm font-semibold text-slate-700">
-                                  {task[
-                                    "Task Title"
-                                  ] ||
-                                    "Untitled Task"}
-                                </p>
-
-                                <p className="mt-1 text-[11px] text-slate-400">
-                                  FY:{" "}
-                                  {task.FY ||
-                                    "—"}
-                                </p>
-
-                              </div>
-
-                            </div>
-
-                          </td>
+                        const focalNames =
+                          getTaskFocals(
+                            task
+                          );
 
 
-                          {/* Assigned */}
-                          <td className="px-4 py-4">
+                        return (
 
-                            <div className="flex items-center gap-2">
+                          <tr
+                            key={getTaskKey(
+                              task,
+                              index
+                            )}
+                            className="
+                              border-b
+                              border-slate-100
+                              last:border-b-0
+                              transition
+                              hover:bg-pink-50/30
+                            "
+                          >
 
-                              <div
-                                className="
-                                  flex
-                                  h-7
-                                  w-7
-                                  shrink-0
-                                  items-center
-                                  justify-center
-                                  rounded-full
-                                  bg-slate-100
-                                  text-slate-500
-                                "
-                              >
-                                <User size={13} />
-                              </div>
+                            {/* TASK */}
 
-                              <span className="max-w-[150px] truncate text-xs font-semibold text-slate-700">
-                                {task[
-                                  "Assigned to"
-                                ] || "—"}
-                              </span>
-
-                            </div>
-
-                          </td>
-
-
-                          {/* Priority */}
-                          <td className="px-4 py-4">
-                            <PriorityBadge
-                              priority={
-                                task.Priority
-                              }
-                            />
-                          </td>
-
-
-                          {/* Timeline */}
-                          <td className="px-4 py-4">
-
-                            <div className="text-xs">
-
-                              <div className="flex items-center gap-1.5 text-slate-600">
-                                <CalendarDays
-                                  size={13}
-                                  className="text-slate-400"
-                                />
-
-                                {formatDate(
-                                  task[
-                                    "Starting Date"
-                                  ]
-                                )}
-                              </div>
-
-                              <div className="mt-1 text-[10px] text-slate-400">
-                                →{" "}
-                                {formatDate(
-                                  task[
-                                    "End Date"
-                                  ]
-                                )}
-                              </div>
-
-                            </div>
-
-                          </td>
-
-
-                          {/* Status */}
-                          <td className="min-w-[150px] px-4 py-4">
-
-                            <StatusBadge
-                              status={
-                                task.Status
-                              }
-                            />
-
-                            <ProgressBar
-                              status={
-                                task.Status
-                              }
-                            />
-
-                          </td>
-
-
-                          {/* Requester */}
-                          <td className="max-w-[170px] px-4 py-4">
-
-                            <p className="truncate text-xs font-medium text-slate-600">
-                              {task[
-                                "Requester (Unit/Client)"
-                              ] ||
-                                "—"}
-                            </p>
-
-                          </td>
-
-
-                          {/* Details */}
-                          <td className="px-4 py-4 text-right">
-
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedTask(
-                                  task
-                                )
-                              }
+                            <td
                               className="
-                                inline-flex
-                                items-center
-                                gap-1
-                                rounded-lg
-                                border
-                                border-slate-200
-                                bg-white
-                                px-3
-                                py-2
-                                text-xs
-                                font-semibold
-                                text-slate-600
-                                transition
-                                hover:border-pink-200
-                                hover:bg-pink-50
-                                hover:text-pink-700
+                                max-w-[300px]
+                                px-4
+                                py-4
                               "
                             >
-                              View
-                              <ChevronRight
-                                size={13}
+
+                              <div
+                                className="
+                                  flex
+                                  items-start
+                                  gap-3
+                                "
+                              >
+
+                                <div
+                                  className="
+                                    mt-0.5
+                                    flex
+                                    h-9
+                                    w-9
+                                    shrink-0
+                                    items-center
+                                    justify-center
+                                    rounded-xl
+                                    bg-pink-50
+                                    text-xs
+                                    font-bold
+                                    text-pink-600
+                                  "
+                                >
+                                  {task.SN ||
+                                    "—"}
+                                </div>
+
+
+                                <div className="min-w-0">
+
+                                  <p
+                                    className="
+                                      break-words
+                                      text-sm
+                                      font-semibold
+                                      text-slate-700
+                                    "
+                                  >
+                                    {task[
+                                      "Task Title"
+                                    ] ||
+                                      "Untitled Task"}
+                                  </p>
+
+
+                                  <p
+                                    className="
+                                      mt-1
+                                      text-[11px]
+                                      text-slate-400
+                                    "
+                                  >
+                                    FY:{" "}
+                                    {displayValue(
+                                      task.FY
+                                    )}
+                                  </p>
+
+                                </div>
+
+                              </div>
+
+                            </td>
+
+
+                            {/* ASSIGNED */}
+
+                            <td
+                              className="
+                                px-4
+                                py-4
+                              "
+                            >
+
+                              <div
+                                className="
+                                  flex
+                                  items-center
+                                  gap-2
+                                "
+                              >
+
+                                <div
+                                  className="
+                                    flex
+                                    h-7
+                                    w-7
+                                    shrink-0
+                                    items-center
+                                    justify-center
+                                    rounded-full
+                                    bg-slate-100
+                                    text-slate-500
+                                  "
+                                >
+                                  <User
+                                    size={13}
+                                  />
+                                </div>
+
+
+                                <span
+                                  className="
+                                    max-w-[150px]
+                                    truncate
+                                    text-xs
+                                    font-semibold
+                                    text-slate-700
+                                  "
+                                >
+                                  {displayValue(
+                                    task[
+                                      "Assigned to"
+                                    ]
+                                  )}
+                                </span>
+
+                              </div>
+
+                            </td>
+
+
+                            {/* FOCAL PERSONS */}
+
+                            <td
+                              className="
+                                max-w-[190px]
+                                px-4
+                                py-4
+                              "
+                            >
+
+                              <div
+                                className="
+                                  flex
+                                  flex-wrap
+                                  gap-1
+                                "
+                              >
+
+                                {focalNames.length >
+                                0 ? (
+
+                                  focalNames.map(
+                                    (
+                                      focal
+                                    ) => (
+
+                                      <button
+                                        type="button"
+                                        key={focal}
+                                        onClick={() =>
+                                          setFocalFilter(
+                                            focal
+                                          )
+                                        }
+                                        title={`Filter by ${focal}`}
+                                        className="
+                                          max-w-[170px]
+                                          truncate
+                                          rounded-full
+                                          border
+                                          border-pink-100
+                                          bg-pink-50
+                                          px-2
+                                          py-1
+                                          text-[10px]
+                                          font-semibold
+                                          text-pink-700
+                                          transition
+                                          hover:border-pink-300
+                                          hover:bg-pink-100
+                                        "
+                                      >
+                                        {focal}
+                                      </button>
+
+                                    )
+                                  )
+
+                                ) : (
+
+                                  <span className="text-xs text-slate-400">
+                                    —
+                                  </span>
+
+                                )}
+
+                              </div>
+
+                            </td>
+
+
+                            {/* PRIORITY */}
+
+                            <td
+                              className="
+                                px-4
+                                py-4
+                              "
+                            >
+
+                              <PriorityBadge
+                                priority={
+                                  task.Priority
+                                }
                               />
-                            </button>
 
-                          </td>
+                            </td>
 
-                        </tr>
-                      )
+
+                            {/* TIMELINE */}
+
+                            <td
+                              className="
+                                px-4
+                                py-4
+                              "
+                            >
+
+                              <div className="text-xs">
+
+                                <div
+                                  className="
+                                    flex
+                                    items-center
+                                    gap-1.5
+                                    text-slate-600
+                                  "
+                                >
+
+                                  <CalendarDays
+                                    size={13}
+                                    className="text-slate-400"
+                                  />
+
+                                  {formatDate(
+                                    task[
+                                      "Starting Date"
+                                    ]
+                                  )}
+
+                                </div>
+
+
+                                <div
+                                  className="
+                                    mt-1
+                                    text-[10px]
+                                    text-slate-400
+                                  "
+                                >
+                                  End:{" "}
+                                  {formatDate(
+                                    task[
+                                      "End Date"
+                                    ]
+                                  )}
+                                </div>
+
+                              </div>
+
+                            </td>
+
+
+                            {/* STATUS */}
+
+                            <td
+                              className="
+                                min-w-[150px]
+                                px-4
+                                py-4
+                              "
+                            >
+
+                              <StatusBadge
+                                status={
+                                  task.Status
+                                }
+                              />
+
+                              <ProgressBar
+                                status={
+                                  task.Status
+                                }
+                              />
+
+                            </td>
+
+
+                            {/* REQUESTER */}
+
+                            <td
+                              className="
+                                max-w-[170px]
+                                px-4
+                                py-4
+                              "
+                            >
+
+                              <p
+                                className="
+                                  truncate
+                                  text-xs
+                                  font-medium
+                                  text-slate-600
+                                "
+                              >
+                                {displayValue(
+                                  task[
+                                    "Requester (Unit/Client)"
+                                  ]
+                                )}
+                              </p>
+
+                            </td>
+
+
+                            {/* DETAILS */}
+
+                            <td
+                              className="
+                                px-4
+                                py-4
+                                text-right
+                              "
+                            >
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedTask(
+                                    task
+                                  )
+                                }
+                                className="
+                                  inline-flex
+                                  items-center
+                                  gap-1
+                                  rounded-lg
+                                  border
+                                  border-slate-200
+                                  bg-white
+                                  px-3
+                                  py-2
+                                  text-xs
+                                  font-semibold
+                                  text-slate-600
+                                  transition
+                                  hover:border-pink-200
+                                  hover:bg-pink-50
+                                  hover:text-pink-700
+                                "
+                              >
+                                View
+
+                                <ChevronRight
+                                  size={13}
+                                />
+
+                              </button>
+
+                            </td>
+
+                          </tr>
+
+                        );
+
+                      }
                     )}
 
                   </tbody>
@@ -1931,15 +3082,54 @@ const IndividualTask = () => {
 
               </div>
 
+
+              <div
+                className="
+                  flex
+                  items-center
+                  justify-between
+                  gap-3
+                  border-t
+                  border-slate-100
+                  bg-slate-50/70
+                  px-4
+                  py-3
+                "
+              >
+
+                <p
+                  className="
+                    text-[11px]
+                    text-slate-400
+                  "
+                >
+                  Task register · Filtered
+                  results update automatically.
+                </p>
+
+
+                <p
+                  className="
+                    text-xs
+                    font-semibold
+                    text-slate-600
+                  "
+                >
+                  {filteredTasks.length} tasks
+                </p>
+
+              </div>
+
             </div>
+
           )}
 
       </div>
 
 
-      {/* ===================================================
+      {/* =================================================
           DETAILS MODAL
-      =================================================== */}
+      ================================================= */}
 
       <TaskDetailsModal
         task={selectedTask}
@@ -1949,7 +3139,9 @@ const IndividualTask = () => {
       />
 
     </div>
+
   );
+
 };
 
 
