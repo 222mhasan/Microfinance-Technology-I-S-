@@ -7,6 +7,8 @@ import {
   BarChart3,
   CalendarDays,
   BriefcaseBusiness,
+  MonitorCog,
+  ExternalLink,
 } from "lucide-react";
 
 const Sidebar = ({ sidebarOpen, onClose }) => {
@@ -16,37 +18,83 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
       path: "/",
       icon: LayoutDashboard,
       ariaLabel: "Go to Dashboard",
+      type: "internal",
     },
     {
       name: "IS Project & Drive",
       path: "/is-project-drive",
       icon: BriefcaseBusiness,
+      type: "internal",
+    },
+    {
+      name: "Technology Management System",
+      path: "http://203.191.33.98:8080/ords/r/system/brac-tms-technology-management-system/login?session=17173696684810",
+      icon: MonitorCog,
+      ariaLabel: "Open Technology Management System",
+      type: "external",
     },
     {
       name: "Projects",
       path: "/projects",
       icon: FolderKanban,
       ariaLabel: "Go to Projects",
+      type: "internal",
     },
     {
       name: "Individual Task",
       path: "/individual-task",
       icon: ListTodo,
       ariaLabel: "Go to Individual Task",
+      type: "internal",
     },
     {
       name: "Activity Summary",
       path: "/activity-summary",
       icon: BarChart3,
       ariaLabel: "Go to Activity Summary",
+      type: "internal",
     },
     {
       name: "Agenda",
       path: "/agenda",
       icon: CalendarDays,
+      type: "internal",
     },
-    
   ];
+
+  const getLinkClassName = (isActive = false) => `
+    group
+    flex
+    items-center
+    gap-3
+    rounded-xl
+    px-4
+    py-3
+    text-sm
+    font-medium
+    transition-all
+    duration-200
+    focus:outline-none
+    focus:ring-2
+    focus:ring-pink-500
+    focus:ring-offset-1
+    ${
+      isActive
+        ? `
+          border-l-4
+          border-pink-600
+          bg-pink-50
+          text-pink-700
+          shadow-sm
+        `
+        : `
+          text-gray-600
+          hover:translate-x-1
+          hover:bg-gray-50
+          hover:text-pink-600
+        `
+    }
+  `;
 
   return (
     <>
@@ -60,6 +108,7 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
         />
       )}
 
+      {/* Sidebar */}
       <aside
         className={`
           fixed
@@ -68,6 +117,7 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
           z-50
           h-[calc(100vh-5rem)]
           w-64
+          overflow-y-auto
           border-r
           border-gray-200
           bg-white
@@ -79,10 +129,7 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
         `}
         aria-label="Main sidebar navigation"
       >
-        {/* ==========================================
-            SIDEBAR HEADER
-        ========================================== */}
-
+        {/* Sidebar Header */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-5">
           <div>
             <h2 className="text-sm font-bold text-gray-800">
@@ -95,16 +142,12 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
           </div>
 
           {/* Close Button */}
-
           <button
             type="button"
             onClick={onClose}
             className="
-              flex
-              h-8
-              w-8
-              items-center
-              justify-center
+              flex h-8 w-8
+              items-center justify-center
               rounded-lg
               text-gray-500
               transition
@@ -123,10 +166,7 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
           </button>
         </div>
 
-        {/* ==========================================
-            NAVIGATION
-        ========================================== */}
-
+        {/* Regular Navigation Menu */}
         <nav className="p-4" aria-label="Primary navigation">
           <p className="mb-3 px-4 text-[10px] font-bold uppercase tracking-widest text-gray-400">
             Main Menu
@@ -136,60 +176,13 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
             {menuItems.map((item) => {
               const Icon = item.icon;
 
-              return (
-                <NavLink
-                  key={item.name}
-                  to={item.path}
-                  onClick={onClose}
-                  end={item.path === "/"}
-                  aria-label={item.ariaLabel}
-                  className={({ isActive }) =>
-                    `
-                      group
-                      flex
-                      items-center
-                      gap-3
-                      rounded-xl
-                      px-4
-                      py-3
-                      text-sm
-                      font-medium
-                      transition-all
-                      duration-200
-                      focus:outline-none
-                      focus:ring-2
-                      focus:ring-pink-500
-                      focus:ring-offset-1
-
-                      ${
-                        isActive
-                          ? `
-                            border-l-4
-                            border-pink-600
-                            bg-pink-50
-                            text-pink-700
-                            shadow-sm
-                          `
-                          : `
-                            text-gray-600
-                            hover:translate-x-1
-                            hover:bg-gray-50
-                            hover:text-pink-600
-                          `
-                      }
-                    `
-                  }
-                >
-                  {/* Icon */}
-
+              const linkContent = (
+                <>
+                  {/* Navigation Icon */}
                   <span
                     className="
-                      flex
-                      h-7
-                      w-7
-                      flex-shrink-0
-                      items-center
-                      justify-center
+                      flex h-7 w-7 flex-shrink-0
+                      items-center justify-center
                       rounded-lg
                     "
                     aria-hidden="true"
@@ -197,9 +190,46 @@ const Sidebar = ({ sidebarOpen, onClose }) => {
                     <Icon size={18} />
                   </span>
 
-                  {/* Menu Name */}
+                  {/* Navigation Label */}
+                  <span className="min-w-0 flex-1 leading-5">{item.name}</span>
 
-                  <span>{item.name}</span>
+                  {/* External Link Indicator */}
+                  {item.type === "external" && (
+                    <ExternalLink
+                      size={14}
+                      className="flex-shrink-0 text-gray-400 transition group-hover:text-pink-600"
+                      aria-hidden="true"
+                    />
+                  )}
+                </>
+              );
+
+              if (item.type === "external") {
+                return (
+                  <a
+                    key={item.name}
+                    href={item.path}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={onClose}
+                    aria-label={item.ariaLabel}
+                    className={getLinkClassName(false)}
+                  >
+                    {linkContent}
+                  </a>
+                );
+              }
+
+              return (
+                <NavLink
+                  key={item.name}
+                  to={item.path}
+                  onClick={onClose}
+                  end={item.path === "/"}
+                  aria-label={item.ariaLabel}
+                  className={({ isActive }) => getLinkClassName(isActive)}
+                >
+                  {linkContent}
                 </NavLink>
               );
             })}
